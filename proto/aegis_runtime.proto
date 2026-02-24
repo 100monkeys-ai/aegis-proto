@@ -30,6 +30,10 @@ service AegisRuntime {
   
   // Invoke a tool via orchestrator mediation (SMCP)
   rpc InvokeTool(InvokeToolRequest) returns (InvokeToolResponse);
+
+  // Ingest a stimulus and trigger the appropriate workflow (ADR-021).
+  // Auth: Keycloak JWT in gRPC metadata key "authorization: Bearer <jwt>".
+  rpc IngestStimulus(IngestStimulusRequest) returns (IngestStimulusResponse);
 }
 
 // =============================================================================
@@ -272,4 +276,30 @@ message InvokeToolRequest {
 
 message InvokeToolResponse {
   bytes result_json = 1; // Success or failure JSON result wrapped
+}
+
+// =============================================================================
+// IngestStimulus RPC (ADR-021 — Stimulus-Response Routing)
+// =============================================================================
+
+// Ingest an external or internal stimulus and route it to the correct workflow.
+// The source_name is matched against the WorkflowRegistry direct routing table;
+// if no direct match is found, the RouterAgent LLM classifier is invoked.
+message IngestStimulusRequest {
+  // Routing key — matches a WorkflowRegistry direct route or "http_api" for LLM path.
+  string source_name = 1;
+  // Raw stimulus payload: natural language, JSON body, or other string content.
+  string content = 2;
+  // Optional idempotency key for exactly-once processing within the 24h TTL window.
+  // An empty string disables deduplication for this request.
+  string idempotency_key = 3;
+  // Forwarded HTTP headers for context (e.g. X-GitHub-Event, X-Stripe-Signature).
+  map<string, string> headers = 4;
+}
+
+message IngestStimulusResponse {
+  // UUID of the Stimulus value object created for this ingestion.
+  string stimulus_id = 1;
+  // UUID of the WorkflowExecution started by routing this stimulus.
+  string workflow_execution_id = 2;
 }
