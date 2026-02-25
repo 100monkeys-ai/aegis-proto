@@ -2,13 +2,6 @@
 
 Canonical Protocol Buffer definitions for the AEGIS platform. This is the single source of truth for all gRPC contracts shared across AEGIS repositories.
 
-## Contents
-
-| File | Package | Service | Consumers |
-|------|---------|---------|-----------|
-| `proto/aegis_runtime.proto` | `aegis.runtime.v1` | `AegisRuntime` | `aegis-orchestrator`, `aegis-cortex`, `aegis-temporal-worker` |
-| `proto/embedding.proto` | `embedding` | `EmbeddingService` | `aegis-orchestrator/embedding-service` |
-
 ## Versioning
 
 This repo is tagged with semantic versions (e.g. `v1.0.0`). Consumers pin to a tag via their git submodule ref.
@@ -19,6 +12,7 @@ This repo is tagged with semantic versions (e.g. `v1.0.0`). Consumers pin to a t
 2. Commit and push
 3. Tag the new version: `git tag v1.x.y && git push --tags`
 4. In each consumer repo, update the submodule ref:
+
    ```bash
    cd aegis-proto
    git fetch
@@ -27,6 +21,7 @@ This repo is tagged with semantic versions (e.g. `v1.0.0`). Consumers pin to a t
    git add aegis-proto
    git commit -m "chore: bump aegis-proto to v1.x.y"
    ```
+
 5. Update generated code / TypeScript types in the consumer as needed
 6. Submit PRs to all affected consumer repos together
 
