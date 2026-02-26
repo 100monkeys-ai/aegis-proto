@@ -31,7 +31,7 @@ service AegisRuntime {
   // Invoke a tool via orchestrator mediation (SMCP)
   rpc InvokeTool(InvokeToolRequest) returns (InvokeToolResponse);
 
-  // Ingest a stimulus and trigger the appropriate workflow (ADR-021).
+  // Ingest a stimulus and trigger the appropriate workflow.
   // Auth: Keycloak JWT in gRPC metadata key "authorization: Bearer <jwt>".
   rpc IngestStimulus(IngestStimulusRequest) returns (IngestStimulusResponse);
 }
@@ -279,7 +279,7 @@ message InvokeToolResponse {
 }
 
 // =============================================================================
-// IngestStimulus RPC (ADR-021 — Stimulus-Response Routing)
+// IngestStimulus RPC
 // =============================================================================
 
 // Ingest an external or internal stimulus and route it to the correct workflow.
