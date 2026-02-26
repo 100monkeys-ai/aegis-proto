@@ -32,7 +32,7 @@ service AegisRuntime {
   rpc InvokeTool(InvokeToolRequest) returns (InvokeToolResponse);
 
   // Ingest a stimulus and trigger the appropriate workflow.
-  // Auth: Keycloak JWT in gRPC metadata key "authorization: Bearer <jwt>".
+  // Auth: Keycloak JWT in gRPC metadata key "authorization: Bearer {jwt}".
   rpc IngestStimulus(IngestStimulusRequest) returns (IngestStimulusResponse);
 }
 
