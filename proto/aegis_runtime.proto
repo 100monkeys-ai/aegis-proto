@@ -49,6 +49,7 @@ message ExecuteAgentRequest {
   string context_json = 3;
   optional SecurityPolicy security_policy = 4;
   optional string workflow_execution_id = 5; // Link to workflow execution
+  optional string parent_execution_id = 6; // ADR-016 Nested Judge Executions
 }
 
 message ExecutionEvent {
