@@ -35,7 +35,7 @@ service AegisRuntime {
   rpc InvokeTool(InvokeToolRequest) returns (InvokeToolResponse);
 
   // Ingest a stimulus and trigger the appropriate workflow.
-  // Auth: Keycloak JWT in gRPC metadata key "authorization: Bearer {jwt}".
+  // Auth: IAM/OIDC JWT in gRPC metadata key "authorization: Bearer {jwt}".
   rpc IngestStimulus(IngestStimulusRequest) returns (IngestStimulusResponse);
 
   // Execute a deterministic CI/CD container step (ADR-050).
@@ -373,7 +373,7 @@ message ExecuteContainerRunRequest {
   repeated ContainerVolumeMount volumes = 8;
   // Optional resource limits.
   ContainerResourceLimits resources = 9;
-  // Optional registry credential reference (OpenBao secret path).
+  // Optional registry credential reference (secret-store path).
   string registry_credentials = 10;
   // If true, wrap command in "sh -c" to enable shell operators.
   bool shell = 11;
