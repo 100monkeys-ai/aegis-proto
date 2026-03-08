@@ -45,6 +45,10 @@ Submodule at `aegis-proto/`. Referenced by `build.rs`.
 
 Submodule at `aegis-proto/`. Referenced by `Dockerfile` and loaded at runtime via `@grpc/proto-loader`.
 
+### `aegis-smcp-gateway`
+
+Submodule at `aegis-proto/`. Referenced by `build.rs`.
+
 ## License
 
 AGPL-3.0 — see [LICENSE](LICENSE).
