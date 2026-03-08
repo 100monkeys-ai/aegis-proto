@@ -35,8 +35,13 @@ service AegisRuntime {
   rpc InvokeTool(InvokeToolRequest) returns (InvokeToolResponse);
 
   // Ingest a stimulus and trigger the appropriate workflow.
-  // Auth: Keycloak JWT in gRPC metadata key "authorization: Bearer {jwt}".
+  // Auth: IAM/OIDC JWT in gRPC metadata key "authorization: Bearer {jwt}".
   rpc IngestStimulus(IngestStimulusRequest) returns (IngestStimulusResponse);
+
+  // Execute a deterministic CI/CD container step (ADR-050).
+  // No LLM loop — runs the specified image with the given command and returns
+  // exit code, stdout, and stderr when the container exits.
+  rpc ExecuteContainerRun(ExecuteContainerRunRequest) returns (ExecuteContainerRunResponse);
 }
 
 // =============================================================================
@@ -323,4 +328,70 @@ message IngestStimulusResponse {
   string stimulus_id = 1;
   // UUID of the WorkflowExecution started by routing this stimulus.
   string workflow_execution_id = 2;
+}
+
+// =============================================================================
+// ExecuteContainerRun RPC (ADR-050)
+// =============================================================================
+
+/// A named volume mount for a container step.
+message ContainerVolumeMount {
+  // Logical name matching the volume declared in the workflow manifest.
+  string name = 1;
+  // Absolute path inside the container where the volume is mounted.
+  string mount_path = 2;
+  // Whether the volume is mounted read-only.
+  bool read_only = 3;
+}
+
+/// Resource limits applied to a container step.
+message ContainerResourceLimits {
+  // CPU in millicores (e.g. 500 = 0.5 CPU). 0 = unlimited.
+  uint32 cpu_millicores = 1;
+  // Memory limit string (e.g. "512m", "2g"). Empty = unlimited.
+  string memory = 2;
+  // Wall-clock timeout for the step (e.g. "30s", "5m"). Empty = no timeout.
+  string timeout = 3;
+}
+
+message ExecuteContainerRunRequest {
+  // UUID of the parent workflow execution.
+  string execution_id = 1;
+  // Logical name of this step (used in events and logs).
+  string name = 2;
+  // Fully-qualified container image reference (e.g. "python:3.11-slim").
+  string image = 3;
+  // Image pull policy: "always", "if_not_present", or "never".
+  string image_pull_policy = 4;
+  // Command to run inside the container.
+  repeated string command = 5;
+  // Environment variables to inject (key=value pairs).
+  map<string, string> env = 6;
+  // Working directory inside the container. Empty = image default.
+  string workdir = 7;
+  // Volume mounts to apply.
+  repeated ContainerVolumeMount volumes = 8;
+  // Optional resource limits.
+  ContainerResourceLimits resources = 9;
+  // Optional registry credential reference (secret-store path).
+  string registry_credentials = 10;
+  // If true, wrap command in "sh -c" to enable shell operators.
+  bool shell = 11;
+  // Name of the workflow state that triggered this step.
+  string state_name = 12;
+  // Maximum number of attempts for this step (1 = no retry).
+  uint32 max_attempts = 13;
+}
+
+message ExecuteContainerRunResponse {
+  // Exit code returned by the container process.
+  int32 exit_code = 1;
+  // Captured stdout (truncated to 1 MiB).
+  string stdout = 2;
+  // Captured stderr (truncated to 1 MiB).
+  string stderr = 3;
+  // Wall-clock duration of the step in milliseconds.
+  uint64 duration_ms = 4;
+  // Number of attempts consumed (1 = succeeded on first try).
+  uint32 attempts = 5;
 }
