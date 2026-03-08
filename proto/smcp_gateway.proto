@@ -94,7 +94,7 @@ message InvokeCliRequest {
   string tool_name = 2;
   string subcommand = 3;
   repeated string args = 4;
-  string workspace_path = 5;
+  string fsal_volume_id = 5;
 }
 
 message InvokeCliResponse {
