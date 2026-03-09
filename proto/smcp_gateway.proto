@@ -89,12 +89,18 @@ message InvokeWorkflowResponse {
   string result_json = 1;
 }
 
+message FsalMount {
+  string volume_id = 1;
+  string mount_path = 2;
+  bool read_only = 3;
+}
+
 message InvokeCliRequest {
   string execution_id = 1;
   string tool_name = 2;
   string subcommand = 3;
   repeated string args = 4;
-  string fsal_volume_id = 5;
+  repeated FsalMount fsal_mounts = 5;
 }
 
 message InvokeCliResponse {
