@@ -1,0 +1,491 @@
+// AEGIS Cluster Service Protocol
+// gRPC service definition for inter-node communication in a distributed AEGIS cluster.
+// Handles node attestation (two-step handshake), registration, heartbeat, execution
+// routing/forwarding, config sync, and peer discovery.
+//
+// Port: 50056
+// Auth: All RPCs except AttestNode and ChallengeNode require a SmcpNodeEnvelope
+//       bearing a valid node_security_token issued by the controller.
+syntax = "proto3";
+
+package aegis.cluster.v1;
+
+option java_multiple_files = true;
+option java_package = "ai.hundredmonkeys.aegis.cluster.v1";
+option java_outer_classname = "AegisClusterProto";
+option go_package = "github.com/100monkeys-ai/aegis-proto/gen/go/cluster/v1;clusterv1";
+
+import "google/protobuf/timestamp.proto";
+import "aegis_runtime.proto";
+
+// =============================================================================
+// NodeClusterService
+// Binds on port 50056.
+// Implements the full lifecycle of a cluster node: attestation → registration →
+// heartbeat → execution routing/forwarding → config sync → deregistration.
+// =============================================================================
+
+service NodeClusterService {
+  // ── Handshake (unauthenticated) ────────────────────────────────────────────
+
+  // Step 1 of node authentication handshake.
+  // Node submits its Ed25519 public key and receives a challenge nonce.
+  // No SmcpNodeEnvelope required — this is the bootstrap call.
+  rpc AttestNode(AttestNodeRequest) returns (AttestNodeResponse);
+
+  // Step 2 of node authentication handshake.
+  // Node signs the challenge nonce with its private key; controller verifies
+  // the signature and issues a NodeSecurityToken (RS256 JWT) on success.
+  rpc ChallengeNode(ChallengeNodeRequest) returns (ChallengeNodeResponse);
+
+  // ── Lifecycle (authenticated) ──────────────────────────────────────────────
+
+  // Register a node's capabilities with the cluster controller.
+  // Must be called after a successful ChallengeNode handshake.
+  // inner_payload: serialized RegisterNodeInner.
+  rpc RegisterNode(RegisterNodeRequest) returns (RegisterNodeResponse);
+
+  // Periodic liveness ping from a worker to the controller.
+  // Response may carry zero or more pending NodeCommands (drain, config push,
+  // shutdown) that the worker must process immediately.
+  // inner_payload: serialized NodeHeartbeatInner.
+  rpc Heartbeat(NodeHeartbeatRequest) returns (NodeHeartbeatResponse);
+
+  // Graceful shutdown notification from a worker to the controller.
+  // Controller marks the node as draining and stops routing new executions to it.
+  // inner_payload: serialized DeregisterNodeInner.
+  rpc DeregisterNode(DeregisterNodeRequest) returns (DeregisterNodeResponse);
+
+  // ── Execution Routing & Forwarding (authenticated) ─────────────────────────
+
+  // Client → Controller: select the best available worker for an execution.
+  // Returns the target node ID and its gRPC address so the client can call
+  // ForwardExecution directly on that worker.
+  // inner_payload: serialized RouteExecutionInner.
+  rpc RouteExecution(RouteExecutionRequest) returns (RouteExecutionResponse);
+
+  // Controller → Worker: delegate an execution to this worker and stream
+  // aegis.runtime.v1.ExecutionEvents back to the caller in real time.
+  // The stream closes when the execution reaches a terminal state
+  // (ExecutionCompleted or ExecutionFailed).
+  // inner_payload: serialized ForwardExecutionInner.
+  rpc ForwardExecution(ForwardExecutionRequest) returns (stream aegis.runtime.v1.ExecutionEvent);
+
+  // ── Config Sync (authenticated) ────────────────────────────────────────────
+
+  // Worker → Controller: compare current config version and pull a delta if stale.
+  // inner_payload: serialized SyncConfigInner.
+  rpc SyncConfig(SyncConfigRequest) returns (SyncConfigResponse);
+
+  // Controller → Worker: push a config update proactively (e.g., after a change
+  // that must be applied without waiting for the next heartbeat cycle).
+  // inner_payload: serialized PushConfigInner.
+  rpc PushConfig(PushConfigRequest) returns (PushConfigResponse);
+
+  // ── Cluster Introspection (authenticated, admin/operator) ─────────────────
+
+  // List all nodes known to the cluster, with optional status/role filters.
+  // Intended for operator tooling and The Synapse control plane UI.
+  // inner_payload: serialized ListPeersInner.
+  rpc ListPeers(ListPeersRequest) returns (ListPeersResponse);
+}
+
+// =============================================================================
+// Security Envelope
+// =============================================================================
+
+// Outer security wrapper required on all authenticated RPCs (analogous to
+// SmcpEnvelope in the user-facing protocol, but scoped to node-to-node calls).
+// The controller verifies node_security_token (RS256 JWT issued by its own
+// OpenBao Transit key) and then verifies the Ed25519 signature over inner_payload
+// using the node's registered public key before deserialising inner_payload.
+message SmcpNodeEnvelope {
+  // RS256 JWT issued by the controller's OpenBao Transit key during ChallengeNode.
+  // Contains: node_id, role, capabilities_hash, iat, exp.
+  string node_security_token = 1;
+
+  // Ed25519 signature over inner_payload using the node's private key.
+  // Provides non-repudiation: nodes cannot deny issuing a request.
+  bytes signature = 2;
+
+  // Serialised inner request message (e.g., RegisterNodeInner, NodeHeartbeatInner).
+  // Must be deserialised only after signature verification succeeds.
+  bytes inner_payload = 3;
+}
+
+// =============================================================================
+// Enums
+// =============================================================================
+
+// Operational status of a cluster node.
+enum NodeStatus {
+  NODE_STATUS_UNSPECIFIED = 0;
+  // Node is healthy and accepting new executions.
+  NODE_STATUS_ACTIVE = 1;
+  // Node is finishing in-flight executions and will not accept new ones.
+  NODE_STATUS_DRAINING = 2;
+  // Node failed its last health check; the scheduler will not route to it.
+  NODE_STATUS_UNHEALTHY = 3;
+}
+
+// Functional role of a cluster node.
+enum NodeRole {
+  NODE_ROLE_UNSPECIFIED = 0;
+  // Manages routing, registration, and config distribution; does not run executions.
+  NODE_ROLE_CONTROLLER = 1;
+  // Runs agent executions; does not perform routing decisions.
+  NODE_ROLE_WORKER = 2;
+  // Capable of both controller and worker duties (single-node / dev deployments).
+  NODE_ROLE_HYBRID = 3;
+}
+
+// =============================================================================
+// Shared Messages
+// =============================================================================
+
+// Hardware and runtime capabilities advertised by a worker node.
+// Used during attestation, registration, and for routing decisions.
+message NodeCapabilities {
+  uint32 gpu_count = 1;
+  uint32 vram_gb = 2;
+  uint32 cpu_cores = 3;
+  uint32 available_memory_gb = 4;
+
+  // AEGIS StandardRuntime strings this node supports, e.g., "python:3.11", "node:20".
+  repeated string supported_runtimes = 5;
+
+  // Arbitrary key:value tags used for affinity routing, e.g., "gpu:a100", "region:us-west".
+  repeated string tags = 6;
+}
+
+// Snapshot of a known cluster node; returned by ListPeers.
+message NodeInfo {
+  string node_id = 1;
+  NodeRole role = 2;
+  NodeStatus status = 3;
+  NodeCapabilities capabilities = 4;
+
+  // "host:port" of this node's NodeClusterService gRPC server.
+  string grpc_address = 5;
+
+  google.protobuf.Timestamp last_heartbeat_at = 6;
+  google.protobuf.Timestamp registered_at = 7;
+}
+
+// =============================================================================
+// AttestNode RPC — Handshake Step 1
+// =============================================================================
+
+// Unauthenticated bootstrap call: node introduces itself and supplies its
+// Ed25519 public key. Controller stores the key candidate and returns a nonce
+// that the node must sign to prove key ownership.
+message AttestNodeRequest {
+  // Stable UUID identifying this node across restarts.
+  string node_id = 1;
+
+  NodeRole role = 2;
+
+  // Raw 32-byte Ed25519 public key (not PEM-encoded).
+  bytes public_key = 3;
+
+  NodeCapabilities capabilities = 4;
+
+  // "host:port" where this node's gRPC server listens; recorded by the controller
+  // for use in RouteExecution responses and ListPeers output.
+  string grpc_address = 5;
+}
+
+message AttestNodeResponse {
+  // 32-byte cryptographically random nonce; the node must sign this in ChallengeNode
+  // to prove it controls the private key corresponding to the submitted public_key.
+  bytes challenge_nonce = 1;
+
+  // UUID correlating this attestation attempt to the subsequent ChallengeNode call.
+  string challenge_id = 2;
+}
+
+// =============================================================================
+// ChallengeNode RPC — Handshake Step 2
+// =============================================================================
+
+message ChallengeNodeRequest {
+  // From AttestNodeResponse.challenge_id; links this response to the correct nonce.
+  string challenge_id = 1;
+
+  string node_id = 2;
+
+  // Ed25519 signature over the challenge_nonce bytes returned in AttestNodeResponse.
+  bytes challenge_signature = 3;
+}
+
+message ChallengeNodeResponse {
+  // RS256 JWT signed by the controller's OpenBao Transit key.
+  // Claims include: node_id, role, capabilities_hash, iat, exp.
+  // Must be included as node_security_token in all subsequent SmcpNodeEnvelopes.
+  string node_security_token = 1;
+
+  // Token expiry; node should re-attest before this timestamp.
+  google.protobuf.Timestamp expires_at = 2;
+}
+
+// =============================================================================
+// RegisterNode RPC
+// =============================================================================
+
+message RegisterNodeRequest {
+  // inner_payload must deserialise to RegisterNodeInner after signature verification.
+  SmcpNodeEnvelope envelope = 1;
+}
+
+// Plaintext inner payload for RegisterNode; serialised into SmcpNodeEnvelope.inner_payload.
+message RegisterNodeInner {
+  string node_id = 1;
+  NodeCapabilities capabilities = 2;
+
+  // "host:port" of this node's gRPC server; may differ from what was sent during
+  // attestation if the node's address changed (e.g., dynamic IP reassignment).
+  string grpc_address = 3;
+}
+
+message RegisterNodeResponse {
+  bool accepted = 1;
+
+  // UUID identifying the cluster this node has joined.
+  string cluster_id = 2;
+
+  // Human-readable confirmation or rejection reason.
+  string message = 3;
+}
+
+// =============================================================================
+// Heartbeat RPC
+// =============================================================================
+
+message NodeHeartbeatRequest {
+  // inner_payload must deserialise to NodeHeartbeatInner after signature verification.
+  SmcpNodeEnvelope envelope = 1;
+}
+
+// Plaintext inner payload for Heartbeat.
+message NodeHeartbeatInner {
+  string node_id = 1;
+  NodeStatus status = 2;
+
+  // Number of agent executions currently running on this node.
+  uint32 active_executions = 3;
+
+  // Current free memory in GB; may differ from NodeCapabilities.available_memory_gb
+  // which reflects the static total.
+  uint32 available_memory_gb = 4;
+
+  // Current CPU utilisation [0.0, 100.0].
+  float cpu_utilization_percent = 5;
+}
+
+message NodeHeartbeatResponse {
+  // Zero or more commands the node must process immediately after receiving this response.
+  repeated NodeCommand pending_commands = 1;
+}
+
+// A command delivered to a worker via HeartbeatResponse.pending_commands.
+// Workers must process all commands before the next heartbeat interval.
+message NodeCommand {
+  oneof command {
+    // Instruct the worker to stop accepting new executions.
+    DrainCommand drain = 1;
+
+    // Deliver a config update; worker must apply it and acknowledge via SyncConfig.
+    PushConfigCommand push_config = 2;
+
+    // Instruct the worker to shut down gracefully after draining.
+    ShutdownCommand shutdown = 3;
+  }
+}
+
+// Stop accepting new executions; complete all in-flight executions then idle.
+message DrainCommand {
+  bool drain = 1;
+}
+
+// Carry a config payload for the worker to apply.
+message PushConfigCommand {
+  string config_version = 1;
+
+  // Serialised config delta (format defined by the config subsystem).
+  bytes config_payload = 2;
+}
+
+// Request graceful shutdown with an explanatory reason (e.g., "maintenance").
+message ShutdownCommand {
+  string reason = 1;
+}
+
+// =============================================================================
+// DeregisterNode RPC
+// =============================================================================
+
+message DeregisterNodeRequest {
+  // inner_payload must deserialise to DeregisterNodeInner after signature verification.
+  SmcpNodeEnvelope envelope = 1;
+}
+
+// Plaintext inner payload for DeregisterNode.
+message DeregisterNodeInner {
+  string node_id = 1;
+
+  // Free-text reason for deregistration, e.g., "graceful_shutdown", "maintenance".
+  string reason = 2;
+}
+
+message DeregisterNodeResponse {
+  // true if the controller accepted the deregistration; false if the node was
+  // not found or already deregistered (idempotent — callers may ignore false).
+  bool accepted = 1;
+}
+
+// =============================================================================
+// RouteExecution RPC
+// =============================================================================
+
+message RouteExecutionRequest {
+  // inner_payload must deserialise to RouteExecutionInner after signature verification.
+  SmcpNodeEnvelope envelope = 1;
+}
+
+// Plaintext inner payload for RouteExecution.
+message RouteExecutionInner {
+  string execution_id = 1;
+  string agent_id = 2;
+
+  // Hardware/runtime requirements that the selected worker must satisfy.
+  NodeCapabilities required_capabilities = 3;
+
+  // Optional affinity hints; scheduler prefers nodes whose tags contain all listed values.
+  repeated string preferred_tags = 4;
+
+  // Tenant slug; used for tenant-aware routing policies.
+  string tenant_id = 5;
+}
+
+message RouteExecutionResponse {
+  // Node ID of the selected worker.
+  string target_node_id = 1;
+
+  // "host:50056" — the caller should dial this address to call ForwardExecution.
+  string worker_grpc_address = 2;
+}
+
+// =============================================================================
+// ForwardExecution RPC
+// =============================================================================
+
+message ForwardExecutionRequest {
+  // inner_payload must deserialise to ForwardExecutionInner after signature verification.
+  SmcpNodeEnvelope envelope = 1;
+}
+
+// Plaintext inner payload for ForwardExecution.
+message ForwardExecutionInner {
+  string execution_id = 1;
+  string agent_id = 2;
+
+  // JSON-encoded execution input passed to the agent's bootstrap loop.
+  string input = 3;
+
+  string tenant_id = 4;
+
+  // ID of the node that originated (routed) this execution; used for audit trails.
+  string originating_node_id = 5;
+
+  // Original user's SMCP SecurityToken threaded through from the client boundary.
+  // The worker uses this when forwarding tool calls back through the orchestrator
+  // proxy to maintain end-to-end user-principal attribution.
+  string user_security_token = 6;
+}
+
+// NOTE: The response is a server-streaming sequence of aegis.runtime.v1.ExecutionEvent
+//       messages (imported from aegis_runtime.proto). The stream closes when the
+//       execution reaches ExecutionCompleted or ExecutionFailed.
+
+// =============================================================================
+// SyncConfig RPC
+// =============================================================================
+
+message SyncConfigRequest {
+  // inner_payload must deserialise to SyncConfigInner after signature verification.
+  SmcpNodeEnvelope envelope = 1;
+}
+
+// Plaintext inner payload for SyncConfig.
+message SyncConfigInner {
+  string node_id = 1;
+
+  // Version string of the config currently applied on this node.
+  // Controller compares this against the latest version to determine whether
+  // a delta is needed.
+  string current_config_version = 2;
+}
+
+message SyncConfigResponse {
+  // true if the node's current_config_version matches the latest; config_delta will be empty.
+  bool up_to_date = 1;
+
+  // The version string of the latest config known to the controller.
+  string latest_version = 2;
+
+  // Serialised config delta to apply; empty when up_to_date is true.
+  bytes config_delta = 3;
+}
+
+// =============================================================================
+// PushConfig RPC
+// =============================================================================
+
+message PushConfigRequest {
+  // inner_payload must deserialise to PushConfigInner after signature verification.
+  SmcpNodeEnvelope envelope = 1;
+}
+
+// Plaintext inner payload for PushConfig.
+message PushConfigInner {
+  // UUID of the worker that should apply this config.
+  string target_node_id = 1;
+
+  string config_version = 2;
+
+  // Full serialised config payload (not a delta — replaces the node's current config).
+  bytes config_payload = 3;
+}
+
+message PushConfigResponse {
+  // true if the worker accepted and applied the config; false if it was rejected
+  // (e.g., parse error or version conflict — worker will surface details via the
+  // next Heartbeat).
+  bool accepted = 1;
+}
+
+// =============================================================================
+// ListPeers RPC
+// =============================================================================
+
+message ListPeersRequest {
+  // inner_payload must deserialise to ListPeersInner after signature verification.
+  SmcpNodeEnvelope envelope = 1;
+}
+
+// Plaintext inner payload for ListPeers.
+message ListPeersInner {
+  // Return only nodes with one of these statuses. Empty slice = no status filter.
+  repeated NodeStatus filter_status = 1;
+
+  // Return only nodes with one of these roles. Empty slice = no role filter.
+  repeated NodeRole filter_role = 2;
+}
+
+message ListPeersResponse {
+  // All nodes matching the requested filters.
+  repeated NodeInfo nodes = 1;
+
+  // UUID of the cluster as assigned during RegisterNode.
+  string cluster_id = 2;
+}
