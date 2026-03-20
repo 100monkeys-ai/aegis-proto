@@ -1,0 +1,89 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright 2026 100monkeys.ai
+
+name: Publish crates.io
+
+on:
+  push:
+    tags:
+      - '*.*.*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Perform a dry run (no actual publishing)'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify build and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry & build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Verify crate builds
+        run: cargo build --locked
+
+      - name: Run tests
+        run: cargo test --locked
+
+  publish:
+    name: Publish aegis-proto
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry & build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Publish crate
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            echo "🔍 DRY RUN: Would publish aegis-proto"
+            cargo publish --locked --dry-run --token ${{ secrets.CRATES_TOKEN }}
+          else
+            echo "📦 Publishing aegis-proto to crates.io..."
+            cargo publish --locked --token ${{ secrets.CRATES_TOKEN }}
+          fi
+
+  publish-docs:
+    name: Publish documentation to docs.rs
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry & build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Generate documentation
+        run: |
+          RUSTDOCFLAGS="--cfg docsrs" cargo doc --locked --no-deps --document-private-items
+
+      - name: Log documentation URL
+        run: |
+          echo "📚 Documentation will be available at:"
+          echo "  - https://docs.rs/aegis-proto"
+          echo ""
+          echo "Note: docs.rs automatically publishes documentation after crates.io publish"
+

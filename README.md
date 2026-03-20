@@ -4,22 +4,22 @@ Canonical Protocol Buffer definitions for the AEGIS platform. This is the single
 
 ## Versioning
 
-This repo is tagged with semantic versions (e.g. `v1.0.0`). Consumers pin to a tag via their git submodule ref.
+This repo is tagged with semantic versions (for example `0.12.0-pre-alpha`). Those tags drive both GitHub Releases and crates.io publishing. Consumers that use this repo as a git submodule still pin to a tag via their submodule ref.
 
 **Updating the proto:**
 
 1. Make changes to the `.proto` file(s) in this repo
 2. Commit and push
-3. Tag the new version: `git tag v1.x.y && git push --tags`
+3. Tag the new version: `git tag 0.x.y && git push --tags`
 4. In each consumer repo, update the submodule ref:
 
    ```bash
    cd aegis-proto
    git fetch
-   git checkout v1.x.y
+   git checkout 0.x.y
    cd ..
    git add aegis-proto
-   git commit -m "chore: bump aegis-proto to v1.x.y"
+   git commit -m "chore: bump aegis-proto to 0.x.y"
    ```
 
 5. Update generated code / TypeScript types in the consumer as needed
@@ -48,6 +48,12 @@ Submodule at `aegis-proto/`. Referenced by `Dockerfile` and loaded at runtime vi
 ### `aegis-smcp-gateway`
 
 Submodule at `aegis-proto/`. Referenced by `build.rs`.
+
+## Publishing
+
+- GitHub Releases are created from semver tag pushes via [release.yml](.github/workflows/release.yml).
+- crates.io publishing runs from the same tag pattern via [crates-publish.yml](.github/workflows/crates-publish.yml).
+- The publish workflow expects a `CRATES_TOKEN` GitHub Actions secret.
 
 ## License
 
