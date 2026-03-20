@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright 2026 100monkeys.ai
+
+name: Release
+
+on:
+  push:
+    tags:
+      - '*.*.*'  # Matches 0.1.0, 0.2.0-pre-alpha, etc.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.version }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+
+          echo "VERSION=${TAG}" >> $GITHUB_OUTPUT
+
+          case "$TAG" in
+            *-*) echo "IS_PRERELEASE=true" >> $GITHUB_OUTPUT ;;
+            *) echo "IS_PRERELEASE=false" >> $GITHUB_OUTPUT ;;
+          esac
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          target_commitish: ${{ github.sha }}
+          name: AEGIS Proto ${{ steps.version.outputs.VERSION }}
+          draft: false
+          prerelease: ${{ steps.version.outputs.IS_PRERELEASE == 'true' }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
