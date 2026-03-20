@@ -1,10 +1,10 @@
-# aegis-proto
+# aegis-orchestrator-proto
 
 Canonical Protocol Buffer definitions for the AEGIS platform. This is the single source of truth for all gRPC contracts shared across AEGIS repositories.
 
 ## Versioning
 
-This repo is tagged with semantic versions (for example `0.12.0-pre-alpha`). Those tags drive both GitHub Releases and crates.io publishing. Consumers that use this repo as a git submodule still pin to a tag via their submodule ref.
+This repo publishes the `aegis-orchestrator-proto` crate and is tagged with semantic versions (for example `0.12.0-pre-alpha`). Those tags drive both GitHub Releases and crates.io publishing. Consumers that use this repo as a git submodule still pin to a tag via their submodule ref.
 
 **Updating the proto:**
 
@@ -19,7 +19,7 @@ This repo is tagged with semantic versions (for example `0.12.0-pre-alpha`). Tho
    git checkout 0.x.y
    cd ..
    git add aegis-proto
-   git commit -m "chore: bump aegis-proto to 0.x.y"
+   git commit -m "chore: bump aegis-orchestrator-proto to 0.x.y"
    ```
 
 5. Update generated code / TypeScript types in the consumer as needed

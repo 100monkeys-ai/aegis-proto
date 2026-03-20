@@ -3,7 +3,7 @@
 version = 4
 
 [[package]]
-name = "aegis-proto"
+name = "aegis-orchestrator-proto"
 version = "0.12.0-pre-alpha"
 dependencies = [
  "prost",

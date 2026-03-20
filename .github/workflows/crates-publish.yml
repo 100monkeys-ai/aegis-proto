@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright 2026 100monkeys.ai
 
-name: Publish crates.io
+name: Publish aegis-orchestrator-proto to crates.io
 
 on:
   push:
@@ -41,7 +41,7 @@ jobs:
         run: cargo test --locked
 
   publish:
-    name: Publish aegis-proto
+    name: Publish aegis-orchestrator-proto
     needs: verify
     runs-on: ubuntu-latest
     steps:
@@ -56,10 +56,10 @@ jobs:
       - name: Publish crate
         run: |
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
-            echo "🔍 DRY RUN: Would publish aegis-proto"
+            echo "🔍 DRY RUN: Would publish aegis-orchestrator-proto"
             cargo publish --locked --dry-run --token ${{ secrets.CRATES_TOKEN }}
           else
-            echo "📦 Publishing aegis-proto to crates.io..."
+            echo "📦 Publishing aegis-orchestrator-proto to crates.io..."
             cargo publish --locked --token ${{ secrets.CRATES_TOKEN }}
           fi
 
@@ -83,7 +83,6 @@ jobs:
       - name: Log documentation URL
         run: |
           echo "📚 Documentation will be available at:"
-          echo "  - https://docs.rs/aegis-proto"
+          echo "  - https://docs.rs/aegis-orchestrator-proto"
           echo ""
           echo "Note: docs.rs automatically publishes documentation after crates.io publish"
-

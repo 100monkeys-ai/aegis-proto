@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright 2026 100monkeys.ai
 
-name: Release
+name: Release aegis-orchestrator-proto
 
 on:
   push:
@@ -44,7 +44,7 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.VERSION }}
           target_commitish: ${{ github.sha }}
-          name: AEGIS Proto ${{ steps.version.outputs.VERSION }}
+          name: AEGIS Orchestrator Proto ${{ steps.version.outputs.VERSION }}
           draft: false
           prerelease: ${{ steps.version.outputs.IS_PRERELEASE == 'true' }}
           generate_release_notes: true
