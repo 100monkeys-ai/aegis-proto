@@ -4,7 +4,7 @@ Canonical Protocol Buffer definitions for the AEGIS platform. This is the single
 
 ## Versioning
 
-This repo publishes the `aegis-orchestrator-proto` crate and is tagged with semantic versions (for example `0.12.0-pre-alpha`). Those tags drive both GitHub Releases and crates.io publishing. Consumers that use this repo as a git submodule still pin to a tag via their submodule ref.
+This repo publishes the `aegis-orchestrator-proto` crate and is tagged with semantic versions (for example `0.13.0-pre-alpha`). Those tags drive both GitHub Releases and crates.io publishing. Consumers that use this repo as a git submodule still pin to a tag via their submodule ref.
 
 **Updating the proto:**
 
