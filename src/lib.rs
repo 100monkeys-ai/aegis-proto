@@ -19,6 +19,11 @@ pub mod aegis {
             tonic::include_proto!("aegis.storage.v1");
         }
     }
+    pub mod cortex {
+        pub mod v1 {
+            tonic::include_proto!("aegis.cortex.v1");
+        }
+    }
 }
 
 pub mod embedding {

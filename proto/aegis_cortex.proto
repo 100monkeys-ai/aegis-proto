@@ -1,0 +1,307 @@
+// Copyright (c) 2026 100monkeys.ai
+// AEGIS Cortex Service Protocol — Learning & Memory (BC-5)
+// gRPC service definition for the standalone Cortex microservice
+
+syntax = "proto3";
+
+package aegis.cortex.v1;
+
+service CortexService {
+  // --- Pattern CRUD ---
+  rpc QueryPatterns(QueryPatternsRequest) returns (QueryPatternsResponse);
+  rpc StorePattern(StorePatternRequest) returns (StorePatternResponse);
+  rpc StoreTrajectoryPattern(StoreTrajectoryPatternRequest) returns (StoreTrajectoryPatternResponse);
+  rpc GetPattern(GetPatternRequest) returns (GetPatternResponse);
+
+  // --- Reinforcement (ADR-018/024 neurochemistry) ---
+  rpc ApplyDopamine(ApplyDopamineRequest) returns (ApplyDopamineResponse);
+  rpc ApplyCortisol(ApplyCortisolRequest) returns (ApplyCortisolResponse);
+  rpc UpdatePatternSuccess(UpdatePatternSuccessRequest) returns (UpdatePatternSuccessResponse);
+
+  // --- Knowledge Graph (ADR-024) ---
+  rpc CreateNode(CreateNodeRequest) returns (CreateNodeResponse);
+  rpc CreateEdge(CreateEdgeRequest) returns (CreateEdgeResponse);
+  rpc TraverseGraph(TraverseGraphRequest) returns (TraverseGraphResponse);
+  rpc QueryGraph(QueryGraphRequest) returns (QueryGraphResponse);
+
+  // --- Skills ---
+  rpc ListSkills(ListSkillsRequest) returns (ListSkillsResponse);
+  rpc GetSkill(GetSkillRequest) returns (GetSkillResponse);
+
+  // --- Sleep Cycle (ADR-024/029) ---
+  rpc TriggerConsolidation(TriggerConsolidationRequest) returns (TriggerConsolidationResponse);
+  rpc TriggerPruning(TriggerPruningRequest) returns (TriggerPruningResponse);
+
+  // --- Ops ---
+  rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse);
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+// =============================================================================
+// Core Domain Messages
+// =============================================================================
+
+message CortexPattern {
+  string id = 1;
+  string error_signature_hash = 2;
+  string error_type = 3;
+  string error_message = 4;
+  string solution_approach = 5;
+  optional string solution_code = 6;
+  uint32 frequency = 7;
+  uint32 success_count = 8;
+  uint32 total_count = 9;
+  float success_score = 10;
+  double weight = 11;
+  string created_at = 12;
+  string last_used_at = 13;
+  repeated string tags = 14;
+  optional string skill_id = 15;
+}
+
+message TrajectoryStep {
+  string tool_name = 1;
+  string arguments_json = 2;
+}
+
+message CortexNode {
+  string id = 1;
+  string node_type = 2;
+  string label = 3;
+  string properties_json = 4;
+  double weight = 5;
+  string created_at = 6;
+}
+
+message CortexEdge {
+  string id = 1;
+  string from_node_id = 2;
+  string to_node_id = 3;
+  string edge_type = 4;
+  double weight = 5;
+  string properties_json = 6;
+  string created_at = 7;
+}
+
+message Skill {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  optional string code = 4;
+  optional string input_schema_json = 5;
+  optional string output_schema_json = 6;
+  repeated string tags = 7;
+  string created_at = 8;
+}
+
+// =============================================================================
+// Pattern CRUD
+// =============================================================================
+
+message QueryPatternsRequest {
+  string error_signature = 1;
+  optional string error_type = 2;
+  optional uint32 limit = 3;
+  optional float min_success_score = 4;
+  string tenant_id = 5;
+}
+
+message QueryPatternsResponse {
+  repeated CortexPattern patterns = 1;
+}
+
+message StorePatternRequest {
+  string error_signature = 1;
+  string error_type = 2;
+  string error_message = 3;
+  string solution_approach = 4;
+  optional string solution_code = 5;
+  optional string agent_id = 6;
+  repeated string tags = 7;
+  string tenant_id = 8;
+}
+
+message StorePatternResponse {
+  string pattern_id = 1;
+  bool deduplicated = 2;
+  uint32 new_frequency = 3;
+}
+
+message StoreTrajectoryPatternRequest {
+  string task_signature = 1;
+  repeated TrajectoryStep steps = 2;
+  double success_score = 3;
+  string tenant_id = 4;
+}
+
+message StoreTrajectoryPatternResponse {
+  string trajectory_id = 1;
+  double new_weight = 2;
+  bool deduplicated = 3;
+}
+
+message GetPatternRequest {
+  string pattern_id = 1;
+  string tenant_id = 2;
+}
+
+message GetPatternResponse {
+  optional CortexPattern pattern = 1;
+}
+
+// =============================================================================
+// Reinforcement (ADR-018/024 neurochemistry)
+// =============================================================================
+
+message ApplyDopamineRequest {
+  string pattern_id = 1;
+  double amount = 2;
+  optional string execution_id = 3;
+  string tenant_id = 4;
+}
+
+message ApplyDopamineResponse {
+  double new_weight = 1;
+}
+
+message ApplyCortisolRequest {
+  string pattern_id = 1;
+  double penalty = 2;
+  string tenant_id = 3;
+}
+
+message ApplyCortisolResponse {
+  double new_weight = 1;
+}
+
+message UpdatePatternSuccessRequest {
+  string pattern_id = 1;
+  double success_score = 2;
+  optional string execution_id = 3;
+  string tenant_id = 4;
+}
+
+message UpdatePatternSuccessResponse {
+  double new_success_score = 1;
+  uint32 new_execution_count = 2;
+}
+
+// =============================================================================
+// Knowledge Graph (ADR-024)
+// =============================================================================
+
+message CreateNodeRequest {
+  CortexNode node = 1;
+  string tenant_id = 2;
+}
+
+message CreateNodeResponse {
+  string node_id = 1;
+}
+
+message CreateEdgeRequest {
+  CortexEdge edge = 1;
+  string tenant_id = 2;
+}
+
+message CreateEdgeResponse {
+  string edge_id = 1;
+}
+
+message TraverseGraphRequest {
+  string start_node_id = 1;
+  uint32 max_depth = 2;
+  repeated string edge_types = 3;
+  string tenant_id = 4;
+}
+
+message TraverseGraphResponse {
+  repeated CortexNode nodes = 1;
+  repeated CortexEdge edges = 2;
+}
+
+message QueryGraphRequest {
+  string query = 1;
+  optional string node_type = 2;
+  optional uint32 limit = 3;
+  string tenant_id = 4;
+}
+
+message QueryGraphResponse {
+  repeated CortexNode nodes = 1;
+  repeated CortexEdge edges = 2;
+}
+
+// =============================================================================
+// Skills
+// =============================================================================
+
+message ListSkillsRequest {
+  optional string tag_filter = 1;
+  optional uint32 limit = 2;
+  string tenant_id = 3;
+}
+
+message ListSkillsResponse {
+  repeated Skill skills = 1;
+}
+
+message GetSkillRequest {
+  string skill_id = 1;
+  string tenant_id = 2;
+}
+
+message GetSkillResponse {
+  optional Skill skill = 1;
+}
+
+// =============================================================================
+// Sleep Cycle (ADR-024/029)
+// =============================================================================
+
+message TriggerConsolidationRequest {
+  string tenant_id = 1;
+}
+
+message TriggerConsolidationResponse {
+  uint32 merged_patterns = 1;
+  uint32 crystallized_skills = 2;
+  uint64 duration_ms = 3;
+}
+
+message TriggerPruningRequest {
+  optional double min_weight = 1;
+  optional int64 max_age_days = 2;
+  string tenant_id = 3;
+}
+
+message TriggerPruningResponse {
+  uint32 pruned_count = 1;
+}
+
+// =============================================================================
+// Ops
+// =============================================================================
+
+message GetMetricsRequest {
+  string tenant_id = 1;
+}
+
+message GetMetricsResponse {
+  uint64 total_patterns = 1;
+  uint64 total_nodes = 2;
+  uint64 total_edges = 3;
+  uint64 total_skills = 4;
+  double avg_success_score = 5;
+  double avg_weight = 6;
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool healthy = 1;
+  string version = 2;
+  string qdrant_status = 3;
+  string graph_status = 4;
+  string embedding_status = 5;
+}

@@ -19,15 +19,6 @@ service AegisRuntime {
   // Validate output using gradient scoring (judge agents)
   rpc ValidateWithJudges(ValidateRequest) returns (ValidateResponse);
   
-  // Query Cortex for patterns
-  rpc QueryCortexPatterns(QueryCortexRequest) returns (QueryCortexResponse);
-  
-  // Store a learned pattern in Cortex
-  rpc StoreCortexPattern(StoreCortexPatternRequest) returns (StoreCortexPatternResponse);
-  
-  // Store a learned tool trajectory in Cortex
-  rpc StoreTrajectoryPattern(StoreTrajectoryPatternRequest) returns (StoreTrajectoryPatternResponse);
-  
   // Attest an agent to receive an SMCP Security Token
   rpc AttestAgent(AttestAgentRequest) returns (AttestAgentResponse);
   
@@ -217,75 +208,6 @@ message JudgeResult {
   float score = 2;
   float confidence = 3;
   string reasoning = 4;
-}
-
-// =============================================================================
-// Cortex RPCs
-// =============================================================================
-
-message QueryCortexRequest {
-  string error_signature = 1;
-  optional string error_type = 2;
-  optional uint32 limit = 3;
-  optional float min_success_score = 4;
-  // Tenant slug; patterns are scoped per-tenant in the Cortex store.
-  string tenant_id = 5;
-}
-
-message QueryCortexResponse {
-  repeated CortexPattern patterns = 1;
-}
-
-message CortexPattern {
-  string id = 1;
-  string error_signature_hash = 2;
-  string error_type = 3;
-  string error_message = 4;
-  string solution_approach = 5;
-  optional string solution_code = 6;
-  uint32 frequency = 7;
-  uint32 success_count = 8;
-  uint32 total_count = 9;
-  float success_score = 10;
-  string created_at = 11;
-  string last_used_at = 12;
-}
-
-message StoreCortexPatternRequest {
-  string error_signature = 1;
-  string error_type = 2;
-  string error_message = 3;
-  string solution_approach = 4;
-  optional string solution_code = 5;
-  optional string agent_id = 6;
-  repeated string tags = 7;
-  // Tenant slug; the stored pattern is scoped to this tenant.
-  string tenant_id = 8;
-}
-
-message StoreCortexPatternResponse {
-  string pattern_id = 1;
-  bool deduplicated = 2; // true if pattern already existed and weight was incremented
-  uint32 new_frequency = 3;
-}
-
-message TrajectoryStep {
-  string tool_name = 1;
-  string arguments_json = 2; // Semantically serialized JSON arguments
-}
-
-message StoreTrajectoryPatternRequest {
-  string task_signature = 1; // Or the raw task string
-  repeated TrajectoryStep steps = 2;
-  double success_score = 3; // Float64 success score
-  // Tenant slug; trajectory patterns are scoped per-tenant.
-  string tenant_id = 4;
-}
-
-message StoreTrajectoryPatternResponse {
-  string trajectory_id = 1;
-  double new_weight = 2;
-  bool deduplicated = 3;
 }
 
 // =============================================================================
