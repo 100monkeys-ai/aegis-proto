@@ -83,6 +83,8 @@ message InvokeWorkflowRequest {
   string workflow_name = 2;
   string input_json = 3;
   string zaru_user_token = 4;
+  // Tenant slug derived from the caller's security context.
+  string tenant_id = 5;
 }
 
 message InvokeWorkflowResponse {
@@ -101,6 +103,8 @@ message InvokeCliRequest {
   string subcommand = 3;
   repeated string args = 4;
   repeated FsalMount fsal_mounts = 5;
+  // Tenant slug for tenant-scoped tool access and FSAL volume isolation.
+  string tenant_id = 6;
 }
 
 message InvokeCliResponse {
@@ -116,6 +120,8 @@ message ExploreApiRequest {
   string parameters_json = 4;
   repeated string fields = 5;
   bool include_hateoas_hints = 6;
+  // Tenant slug for tenant-scoped credential resolution.
+  string tenant_id = 7;
 }
 
 message ExploreApiResponse {

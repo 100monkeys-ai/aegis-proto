@@ -55,6 +55,9 @@ message ExecuteAgentRequest {
   optional SecurityPolicy security_policy = 4;
   optional string workflow_execution_id = 5; // Link to workflow execution
   optional string parent_execution_id = 6; // Nested Judge Executions
+  // Tenant slug derived from the caller's JWT; used for tenant-scoped isolation,
+  // storage paths, and Cortex partitioning.
+  string tenant_id = 7;
 }
 
 message ExecutionEvent {
@@ -225,6 +228,8 @@ message QueryCortexRequest {
   optional string error_type = 2;
   optional uint32 limit = 3;
   optional float min_success_score = 4;
+  // Tenant slug; patterns are scoped per-tenant in the Cortex store.
+  string tenant_id = 5;
 }
 
 message QueryCortexResponse {
@@ -254,6 +259,8 @@ message StoreCortexPatternRequest {
   optional string solution_code = 5;
   optional string agent_id = 6;
   repeated string tags = 7;
+  // Tenant slug; the stored pattern is scoped to this tenant.
+  string tenant_id = 8;
 }
 
 message StoreCortexPatternResponse {
@@ -270,7 +277,9 @@ message TrajectoryStep {
 message StoreTrajectoryPatternRequest {
   string task_signature = 1; // Or the raw task string
   repeated TrajectoryStep steps = 2;
-  double success_score = 3; // Float64 success score 
+  double success_score = 3; // Float64 success score
+  // Tenant slug; trajectory patterns are scoped per-tenant.
+  string tenant_id = 4;
 }
 
 message StoreTrajectoryPatternResponse {
@@ -288,6 +297,9 @@ message AttestAgentRequest {
   string execution_id = 2;
   string container_id = 3;
   string public_key_pem = 4;
+  // Tenant slug; embedded in the issued SMCP security token for downstream
+  // tenant-scoped tool access enforcement.
+  string tenant_id = 5;
 }
 
 message AttestAgentResponse {
@@ -321,6 +333,9 @@ message IngestStimulusRequest {
   string idempotency_key = 3;
   // Forwarded HTTP headers for context (e.g. X-GitHub-Event, X-Stripe-Signature).
   map<string, string> headers = 4;
+  // Tenant slug derived from the caller's JWT; scopes the stimulus and any
+  // resulting workflow execution to the identified tenant.
+  string tenant_id = 5;
 }
 
 message IngestStimulusResponse {
@@ -381,6 +396,8 @@ message ExecuteContainerRunRequest {
   string state_name = 12;
   // Maximum number of attempts for this step (1 = no retry).
   uint32 max_attempts = 13;
+  // Tenant slug; used for tenant-scoped volume paths and resource accounting.
+  string tenant_id = 14;
 }
 
 message ExecuteContainerRunResponse {
