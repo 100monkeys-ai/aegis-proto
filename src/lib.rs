@@ -14,6 +14,11 @@ pub mod aegis {
             tonic::include_proto!("aegis.cluster.v1");
         }
     }
+    pub mod storage {
+        pub mod v1 {
+            tonic::include_proto!("aegis.storage.v1");
+        }
+    }
 }
 
 pub mod embedding {

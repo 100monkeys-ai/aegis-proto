@@ -7,6 +7,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "proto/smcp_gateway.proto",
         "proto/aegis_cluster.proto",
         "proto/embedding.proto",
+        "proto/aegis_remote_storage.proto",
     ];
 
     tonic_prost_build::configure()
