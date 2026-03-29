@@ -49,6 +49,10 @@ message ExecuteAgentRequest {
   // Tenant slug derived from the caller's JWT; used for tenant-scoped isolation,
   // storage paths, and Cortex partitioning.
   string tenant_id = 7;
+  // Named security context from the SecurityPolicy registry; when set, the
+  // runtime resolves the full SecurityPolicy from this name instead of using
+  // the inline security_policy field.
+  optional string security_context_name = 8;
 }
 
 message ExecutionEvent {
