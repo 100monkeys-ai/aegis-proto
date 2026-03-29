@@ -136,6 +136,9 @@ message ToolSummary {
   string name = 1;
   string description = 2;
   string kind = 3;
+  string input_schema_json = 4; // Full JSON Schema for the tool's input
+  repeated string tags = 5;     // e.g., "read-only", "destructive", "network"
+  string category = 6;          // e.g., "external", "devops", "api_integration"
 }
 
 message ListToolsResponse {
