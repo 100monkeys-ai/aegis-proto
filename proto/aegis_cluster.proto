@@ -401,6 +401,10 @@ message ForwardExecutionInner {
   // The worker uses this when forwarding tool calls back through the orchestrator
   // proxy to maintain end-to-end user-principal attribution.
   string user_security_token = 6;
+
+  // ADR-083: Security context name propagated from the originating node so the
+  // worker applies the correct security policy without hardcoding a default.
+  string security_context_name = 7;
 }
 
 // NOTE: The response is a server-streaming sequence of aegis.runtime.v1.ExecutionEvent
