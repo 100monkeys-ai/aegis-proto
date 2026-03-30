@@ -28,6 +28,14 @@ service CortexService {
   rpc ListSkills(ListSkillsRequest) returns (ListSkillsResponse);
   rpc GetSkill(GetSkillRequest) returns (GetSkillResponse);
 
+  // --- Discovery Indexing (ADR-086 / ADR-075 revision) ---
+  rpc IndexAgent(IndexAgentRequest) returns (IndexAgentResponse);
+  rpc IndexWorkflow(IndexWorkflowRequest) returns (IndexWorkflowResponse);
+  rpc RemoveAgent(RemoveDiscoveryAgentRequest) returns (RemoveDiscoveryAgentResponse);
+  rpc RemoveWorkflow(RemoveDiscoveryWorkflowRequest) returns (RemoveDiscoveryWorkflowResponse);
+  rpc DiscoverAgents(DiscoverAgentsRequest) returns (DiscoverAgentsResponse);
+  rpc DiscoverWorkflows(DiscoverWorkflowsRequest) returns (DiscoverWorkflowsResponse);
+
   // --- Sleep Cycle (ADR-024/029) ---
   rpc TriggerConsolidation(TriggerConsolidationRequest) returns (TriggerConsolidationResponse);
   rpc TriggerPruning(TriggerPruningRequest) returns (TriggerPruningResponse);
@@ -304,4 +312,109 @@ message HealthCheckResponse {
   string qdrant_status = 3;
   string graph_status = 4;
   string embedding_status = 5;
+}
+
+// =============================================================================
+// Discovery Indexing Messages (ADR-086)
+// =============================================================================
+
+message IndexAgentRequest {
+  string agent_id = 1;
+  string tenant_id = 2;
+  string name = 3;
+  string version = 4;
+  string description = 5;
+  map<string, string> labels = 6;
+  repeated string tools = 7;
+  string task_description = 8;
+  string runtime_language = 9;
+  string status = 10;
+  bool is_platform_template = 11;
+  string updated_at = 12; // RFC3339
+}
+
+message IndexAgentResponse {
+  bool success = 1;
+}
+
+message IndexWorkflowRequest {
+  string workflow_id = 1;
+  string tenant_id = 2;
+  string name = 3;
+  string version = 4;
+  string description = 5;
+  map<string, string> labels = 6;
+  repeated string state_names = 7;
+  repeated string agent_names = 8;
+  bool is_platform_template = 9;
+  string updated_at = 10; // RFC3339
+}
+
+message IndexWorkflowResponse {
+  bool success = 1;
+}
+
+message RemoveDiscoveryAgentRequest {
+  string agent_id = 1;
+  string tenant_id = 2;
+}
+
+message RemoveDiscoveryAgentResponse {
+  bool success = 1;
+}
+
+message RemoveDiscoveryWorkflowRequest {
+  string workflow_id = 1;
+  string tenant_id = 2;
+}
+
+message RemoveDiscoveryWorkflowResponse {
+  bool success = 1;
+}
+
+message DiscoverAgentsRequest {
+  string query = 1;
+  uint32 limit = 2;
+  double min_score = 3;
+  map<string, string> label_filters = 4;
+  optional string status_filter = 5;
+  bool include_platform_templates = 6;
+  string tenant_id = 7;
+  string tier = 8; // "free" | "pro" | "business" | "enterprise"
+}
+
+message DiscoverWorkflowsRequest {
+  string query = 1;
+  uint32 limit = 2;
+  double min_score = 3;
+  map<string, string> label_filters = 4;
+  bool include_platform_templates = 5;
+  string tenant_id = 6;
+  string tier = 7; // "free" | "pro" | "business" | "enterprise"
+}
+
+message DiscoveryResultItem {
+  string resource_id = 1;
+  string kind = 2; // "agent" or "workflow"
+  string name = 3;
+  string version = 4;
+  string description = 5;
+  map<string, string> labels = 6;
+  double similarity_score = 7;
+  double relevance_score = 8;
+  string tenant_id = 9;
+  string updated_at = 10;
+  bool is_platform_template = 11;
+}
+
+message DiscoverAgentsResponse {
+  repeated DiscoveryResultItem results = 1;
+  uint64 total_indexed = 2;
+  uint64 query_time_ms = 3;
+}
+
+message DiscoverWorkflowsResponse {
+  repeated DiscoveryResultItem results = 1;
+  uint64 total_indexed = 2;
+  uint64 query_time_ms = 3;
 }
