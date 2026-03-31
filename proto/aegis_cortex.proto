@@ -331,6 +331,7 @@ message IndexAgentRequest {
   string status = 10;
   bool is_platform_template = 11;
   string updated_at = 12; // RFC3339
+  repeated string tags = 13;
 }
 
 message IndexAgentResponse {
@@ -348,6 +349,7 @@ message IndexWorkflowRequest {
   repeated string agent_names = 8;
   bool is_platform_template = 9;
   string updated_at = 10; // RFC3339
+  repeated string tags = 11;
 }
 
 message IndexWorkflowResponse {
