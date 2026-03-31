@@ -41,6 +41,12 @@ service AegisRuntime {
   // Search for workflows matching a natural-language query (ADR-075).
   // Scoped to the caller's tenant; optionally includes platform templates.
   rpc SearchWorkflows(SearchWorkflowsRequest) returns (SearchWorkflowsResponse);
+
+  // Create an ephemeral workspace volume for the intent-to-execution pipeline (ADR-087).
+  rpc CreateWorkspaceVolume(CreateWorkspaceVolumeRequest) returns (CreateWorkspaceVolumeResponse);
+
+  // Destroy a workspace volume after pipeline completion or failure (ADR-087).
+  rpc DestroyWorkspaceVolume(DestroyWorkspaceVolumeRequest) returns (DestroyWorkspaceVolumeResponse);
 }
 
 // =============================================================================
@@ -396,4 +402,42 @@ message DiscoveryResultProto {
   string tenant_id = 9;
   string updated_at = 10;
   bool is_platform_template = 11;
+}
+
+// =============================================================================
+// CreateWorkspaceVolume RPC (ADR-087)
+// =============================================================================
+
+message CreateWorkspaceVolumeRequest {
+  // Workflow execution ID that owns this workspace volume.
+  string workflow_execution_id = 1;
+  // Tenant slug for volume isolation.
+  string tenant_id = 2;
+  // TTL in hours for ephemeral workspace volumes.
+  uint32 ttl_hours = 3;
+  // Size limit in MB (0 = default quota).
+  uint64 size_limit_mb = 4;
+}
+
+message CreateWorkspaceVolumeResponse {
+  // The provisioned volume ID.
+  string volume_id = 1;
+  // NFS remote path for mounting into containers.
+  string remote_path = 2;
+}
+
+// =============================================================================
+// DestroyWorkspaceVolume RPC (ADR-087)
+// =============================================================================
+
+message DestroyWorkspaceVolumeRequest {
+  // The volume ID to destroy.
+  string volume_id = 1;
+  // Workflow execution ID that owns this volume (for ownership verification).
+  string workflow_execution_id = 2;
+}
+
+message DestroyWorkspaceVolumeResponse {
+  // Whether the volume was successfully destroyed.
+  bool destroyed = 1;
 }
