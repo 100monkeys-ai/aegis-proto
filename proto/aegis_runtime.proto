@@ -249,7 +249,7 @@ message AttestAgentResponse {
 message InvokeToolRequest {
   string security_token = 1;
   string signature = 2;
-  bytes inner_mcp = 3; // The JSON-RPC payload representing the MCP tool call
+  bytes payload = 3; // The JSON-RPC payload representing the MCP tool call
 }
 
 message InvokeToolResponse {
