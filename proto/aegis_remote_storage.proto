@@ -1,11 +1,11 @@
 // AEGIS Remote Storage Service Protocol
 // gRPC service definition for cross-node POSIX file operations (ADR-064).
-// All RPCs except HealthCheck path-based operations require SMCP node
-// authentication via SmcpNodeEnvelope. The host node executes authoritative
+// All RPCs except HealthCheck path-based operations require SEAL node
+// authentication via SealNodeEnvelope. The host node executes authoritative
 // AegisFSAL checks before delegating to the local StorageProvider.
 //
 // Port: 50056 (shared with NodeClusterService)
-// Auth: SmcpNodeEnvelope bearing a valid node_security_token.
+// Auth: SealNodeEnvelope bearing a valid node_security_token.
 syntax = "proto3";
 
 package aegis.storage.v1;
@@ -18,7 +18,7 @@ option go_package = "github.com/100monkeys-ai/aegis-proto/gen/go/storage/v1;stor
 import "aegis_cluster.proto";
 
 // Remote storage service for cross-node volume access (ADR-064).
-// All RPCs require SMCP node authentication via SmcpNodeEnvelope.
+// All RPCs require SEAL node authentication via SealNodeEnvelope.
 // The host node executes authoritative AegisFSAL checks.
 service RemoteStorageService {
   rpc CreateDirectory(RemoteStorageRequest) returns (RemoteStorageResponse);
@@ -37,9 +37,9 @@ service RemoteStorageService {
   rpc HealthCheck(HealthCheckRequest) returns (RemoteStorageResponse);
 }
 
-// Common request wrapper with SMCP authentication and path
+// Common request wrapper with SEAL authentication and path
 message RemoteStorageRequest {
-  aegis.cluster.v1.SmcpNodeEnvelope envelope = 1;
+  aegis.cluster.v1.SealNodeEnvelope envelope = 1;
   string volume_id = 2;
   string path = 3;
 }
@@ -50,14 +50,14 @@ message RemoteStorageResponse {
 }
 
 message SetQuotaRequest {
-  aegis.cluster.v1.SmcpNodeEnvelope envelope = 1;
+  aegis.cluster.v1.SealNodeEnvelope envelope = 1;
   string volume_id = 2;
   string path = 3;
   uint64 bytes = 4;
 }
 
 message GetUsageRequest {
-  aegis.cluster.v1.SmcpNodeEnvelope envelope = 1;
+  aegis.cluster.v1.SealNodeEnvelope envelope = 1;
   string volume_id = 2;
   string path = 3;
 }
@@ -67,7 +67,7 @@ message GetUsageResponse {
 }
 
 message OpenFileRequest {
-  aegis.cluster.v1.SmcpNodeEnvelope envelope = 1;
+  aegis.cluster.v1.SealNodeEnvelope envelope = 1;
   string volume_id = 2;
   string path = 3;
   int32 mode = 4; // 0=ReadOnly, 1=WriteOnly, 2=ReadWrite, 3=Create
@@ -78,7 +78,7 @@ message OpenFileResponse {
 }
 
 message ReadAtRequest {
-  aegis.cluster.v1.SmcpNodeEnvelope envelope = 1;
+  aegis.cluster.v1.SealNodeEnvelope envelope = 1;
   string volume_id = 2;
   bytes file_handle = 3;
   uint64 offset = 4;
@@ -90,7 +90,7 @@ message ReadAtResponse {
 }
 
 message WriteAtRequest {
-  aegis.cluster.v1.SmcpNodeEnvelope envelope = 1;
+  aegis.cluster.v1.SealNodeEnvelope envelope = 1;
   string volume_id = 2;
   bytes file_handle = 3;
   uint64 offset = 4;
@@ -102,7 +102,7 @@ message WriteAtResponse {
 }
 
 message CloseFileRequest {
-  aegis.cluster.v1.SmcpNodeEnvelope envelope = 1;
+  aegis.cluster.v1.SealNodeEnvelope envelope = 1;
   string volume_id = 2;
   bytes file_handle = 3;
 }
@@ -129,19 +129,19 @@ message DirEntryProto {
 }
 
 message CreateFileRequest {
-  aegis.cluster.v1.SmcpNodeEnvelope envelope = 1;
+  aegis.cluster.v1.SealNodeEnvelope envelope = 1;
   string volume_id = 2;
   string path = 3;
   uint32 mode = 4;
 }
 
 message RenameRequest {
-  aegis.cluster.v1.SmcpNodeEnvelope envelope = 1;
+  aegis.cluster.v1.SealNodeEnvelope envelope = 1;
   string volume_id = 2;
   string from_path = 3;
   string to_path = 4;
 }
 
 message HealthCheckRequest {
-  aegis.cluster.v1.SmcpNodeEnvelope envelope = 1;
+  aegis.cluster.v1.SealNodeEnvelope envelope = 1;
 }

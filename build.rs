@@ -4,7 +4,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let protos = [
         "proto/aegis_runtime.proto",
-        "proto/smcp_gateway.proto",
+        "proto/seal_gateway.proto",
         "proto/aegis_cluster.proto",
         "proto/embedding.proto",
         "proto/aegis_remote_storage.proto",

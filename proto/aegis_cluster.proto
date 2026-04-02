@@ -4,7 +4,7 @@
 // routing/forwarding, config sync, and peer discovery.
 //
 // Port: 50056
-// Auth: All RPCs except AttestNode and ChallengeNode require a SmcpNodeEnvelope
+// Auth: All RPCs except AttestNode and ChallengeNode require a SealNodeEnvelope
 //       bearing a valid node_security_token issued by the controller.
 syntax = "proto3";
 
@@ -30,7 +30,7 @@ service NodeClusterService {
 
   // Step 1 of node authentication handshake.
   // Node submits its Ed25519 public key and receives a challenge nonce.
-  // No SmcpNodeEnvelope required — this is the bootstrap call.
+  // No SealNodeEnvelope required — this is the bootstrap call.
   rpc AttestNode(AttestNodeRequest) returns (AttestNodeResponse);
 
   // Step 2 of node authentication handshake.
@@ -95,11 +95,11 @@ service NodeClusterService {
 // =============================================================================
 
 // Outer security wrapper required on all authenticated RPCs (analogous to
-// SmcpEnvelope in the user-facing protocol, but scoped to node-to-node calls).
+// SealEnvelope in the user-facing protocol, but scoped to node-to-node calls).
 // The controller verifies node_security_token (RS256 JWT issued by its own
 // OpenBao Transit key) and then verifies the Ed25519 signature over inner_payload
 // using the node's registered public key before deserialising inner_payload.
-message SmcpNodeEnvelope {
+message SealNodeEnvelope {
   // RS256 JWT issued by the controller's OpenBao Transit key during ChallengeNode.
   // Contains: node_id, role, capabilities_hash, iat, exp.
   string node_security_token = 1;
@@ -221,7 +221,7 @@ message ChallengeNodeRequest {
 message ChallengeNodeResponse {
   // RS256 JWT signed by the controller's OpenBao Transit key.
   // Claims include: node_id, role, capabilities_hash, iat, exp.
-  // Must be included as node_security_token in all subsequent SmcpNodeEnvelopes.
+  // Must be included as node_security_token in all subsequent SealNodeEnvelopes.
   string node_security_token = 1;
 
   // Token expiry; node should re-attest before this timestamp.
@@ -234,10 +234,10 @@ message ChallengeNodeResponse {
 
 message RegisterNodeRequest {
   // inner_payload must deserialise to RegisterNodeInner after signature verification.
-  SmcpNodeEnvelope envelope = 1;
+  SealNodeEnvelope envelope = 1;
 }
 
-// Plaintext inner payload for RegisterNode; serialised into SmcpNodeEnvelope.inner_payload.
+// Plaintext inner payload for RegisterNode; serialised into SealNodeEnvelope.inner_payload.
 message RegisterNodeInner {
   string node_id = 1;
   NodeCapabilities capabilities = 2;
@@ -263,7 +263,7 @@ message RegisterNodeResponse {
 
 message NodeHeartbeatRequest {
   // inner_payload must deserialise to NodeHeartbeatInner after signature verification.
-  SmcpNodeEnvelope envelope = 1;
+  SealNodeEnvelope envelope = 1;
 }
 
 // Plaintext inner payload for Heartbeat.
@@ -326,7 +326,7 @@ message ShutdownCommand {
 
 message DeregisterNodeRequest {
   // inner_payload must deserialise to DeregisterNodeInner after signature verification.
-  SmcpNodeEnvelope envelope = 1;
+  SealNodeEnvelope envelope = 1;
 }
 
 // Plaintext inner payload for DeregisterNode.
@@ -349,7 +349,7 @@ message DeregisterNodeResponse {
 
 message RouteExecutionRequest {
   // inner_payload must deserialise to RouteExecutionInner after signature verification.
-  SmcpNodeEnvelope envelope = 1;
+  SealNodeEnvelope envelope = 1;
 }
 
 // Plaintext inner payload for RouteExecution.
@@ -381,7 +381,7 @@ message RouteExecutionResponse {
 
 message ForwardExecutionRequest {
   // inner_payload must deserialise to ForwardExecutionInner after signature verification.
-  SmcpNodeEnvelope envelope = 1;
+  SealNodeEnvelope envelope = 1;
 }
 
 // Plaintext inner payload for ForwardExecution.
@@ -397,7 +397,7 @@ message ForwardExecutionInner {
   // ID of the node that originated (routed) this execution; used for audit trails.
   string originating_node_id = 5;
 
-  // Original user's SMCP SecurityToken threaded through from the client boundary.
+  // Original user's SEAL SecurityToken threaded through from the client boundary.
   // The worker uses this when forwarding tool calls back through the orchestrator
   // proxy to maintain end-to-end user-principal attribution.
   string user_security_token = 6;
@@ -417,7 +417,7 @@ message ForwardExecutionInner {
 
 message SyncConfigRequest {
   // inner_payload must deserialise to SyncConfigInner after signature verification.
-  SmcpNodeEnvelope envelope = 1;
+  SealNodeEnvelope envelope = 1;
 }
 
 // Plaintext inner payload for SyncConfig.
@@ -447,7 +447,7 @@ message SyncConfigResponse {
 
 message PushConfigRequest {
   // inner_payload must deserialise to PushConfigInner after signature verification.
-  SmcpNodeEnvelope envelope = 1;
+  SealNodeEnvelope envelope = 1;
 }
 
 // Plaintext inner payload for PushConfig.
@@ -474,7 +474,7 @@ message PushConfigResponse {
 
 message ListPeersRequest {
   // inner_payload must deserialise to ListPeersInner after signature verification.
-  SmcpNodeEnvelope envelope = 1;
+  SealNodeEnvelope envelope = 1;
 }
 
 // Plaintext inner payload for ListPeers.

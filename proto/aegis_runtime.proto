@@ -19,10 +19,10 @@ service AegisRuntime {
   // Validate output using gradient scoring (judge agents)
   rpc ValidateWithJudges(ValidateRequest) returns (ValidateResponse);
   
-  // Attest an agent to receive an SMCP Security Token
+  // Attest an agent to receive a SEAL Security Token
   rpc AttestAgent(AttestAgentRequest) returns (AttestAgentResponse);
   
-  // Invoke a tool via orchestrator mediation (SMCP)
+  // Invoke a tool via orchestrator mediation (SEAL)
   rpc InvokeTool(InvokeToolRequest) returns (InvokeToolResponse);
 
   // Ingest a stimulus and trigger the appropriate workflow.
@@ -229,7 +229,7 @@ message JudgeResult {
 }
 
 // =============================================================================
-// SMCP / MCP Routing RPCs
+// SEAL / MCP Routing RPCs
 // =============================================================================
 
 message AttestAgentRequest {
@@ -237,7 +237,7 @@ message AttestAgentRequest {
   string execution_id = 2;
   string container_id = 3;
   string public_key_pem = 4;
-  // Tenant slug; embedded in the issued SMCP security token for downstream
+  // Tenant slug; embedded in the issued SEAL security token for downstream
   // tenant-scoped tool access enforcement.
   string tenant_id = 5;
 }

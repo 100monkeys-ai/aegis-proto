@@ -4,9 +4,9 @@ pub mod aegis {
             tonic::include_proto!("aegis.runtime.v1");
         }
     }
-    pub mod smcp_gateway {
+    pub mod seal_gateway {
         pub mod v1 {
-            tonic::include_proto!("aegis.smcp_gateway.v1");
+            tonic::include_proto!("aegis.seal_gateway.v1");
         }
     }
     pub mod cluster {
