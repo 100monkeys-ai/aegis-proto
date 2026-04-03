@@ -332,6 +332,7 @@ message IndexAgentRequest {
   bool is_platform_template = 11;
   string updated_at = 12; // RFC3339
   repeated string tags = 13;
+  optional string input_schema = 14;
 }
 
 message IndexAgentResponse {
@@ -350,6 +351,7 @@ message IndexWorkflowRequest {
   bool is_platform_template = 9;
   string updated_at = 10; // RFC3339
   repeated string tags = 11;
+  optional string input_schema = 12;
 }
 
 message IndexWorkflowResponse {
@@ -407,6 +409,7 @@ message DiscoveryResultItem {
   string tenant_id = 9;
   string updated_at = 10;
   bool is_platform_template = 11;
+  optional string input_schema = 12;
 }
 
 message DiscoverAgentsResponse {
