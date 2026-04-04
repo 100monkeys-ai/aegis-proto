@@ -67,6 +67,8 @@ message ExecuteAgentRequest {
   // runtime resolves the full SecurityPolicy from this name instead of using
   // the inline security_policy field.
   optional string security_context_name = 8;
+  // Natural-language steering for the agent (ADR-092).
+  optional string intent = 9;
 }
 
 message ExecutionEvent {
