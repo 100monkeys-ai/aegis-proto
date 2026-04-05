@@ -69,6 +69,13 @@ message ExecuteAgentRequest {
   optional string security_context_name = 8;
   // Natural-language steering for the agent (ADR-092).
   optional string intent = 9;
+  // Workflow workspace volume ID to mount into the agent container.
+  // When set, the runtime mounts this volume so the agent writes into the
+  // shared workspace that other workflow steps (e.g. ContainerRun) can read.
+  optional string workspace_volume_id = 10;
+  // Container path at which the workspace volume is mounted.
+  // Defaults to /workspace when workspace_volume_id is provided.
+  optional string workspace_volume_mount_path = 11;
 }
 
 message ExecutionEvent {
