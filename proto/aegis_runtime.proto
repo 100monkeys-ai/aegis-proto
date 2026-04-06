@@ -53,6 +53,9 @@ service AegisRuntime {
 
   // Proxy a Cortex pattern store through the Orchestrator (callers never connect to Cortex directly).
   rpc StoreCortexPattern(StoreCortexPatternRequest) returns (StoreCortexPatternResponse);
+
+  // Invoke an output handler after workflow execution completes (ADR-103).
+  rpc InvokeOutputHandler(InvokeOutputHandlerRequest) returns (InvokeOutputHandlerResponse);
 }
 
 // =============================================================================
@@ -501,4 +504,23 @@ message StoreCortexPatternResponse {
   string pattern_id = 1;
   bool deduplicated = 2;
   uint32 new_frequency = 3;
+}
+
+// =============================================================================
+// InvokeOutputHandler RPC (ADR-103)
+// =============================================================================
+
+// ADR-103: Output handler invocation request from temporal worker.
+message InvokeOutputHandlerRequest {
+  string execution_id = 1;
+  string tenant_id = 2;
+  string final_output = 3;
+  // JSON-serialized OutputHandlerConfig
+  string handler_config_json = 4;
+}
+
+message InvokeOutputHandlerResponse {
+  bool success = 1;
+  string result = 2;
+  string error = 3;
 }
