@@ -85,6 +85,9 @@ message ExecuteAgentRequest {
   // Container path at which the workspace volume is mounted.
   // Defaults to /workspace when workspace_volume_id is provided.
   optional string workspace_volume_mount_path = 11;
+  // NFS remote path for the workspace volume in SeaweedFS.
+  // When set, used directly for NFS registration instead of constructing a path.
+  optional string workspace_remote_path = 12;
 }
 
 message ExecutionEvent {
