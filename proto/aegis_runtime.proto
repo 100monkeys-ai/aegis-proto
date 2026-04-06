@@ -47,6 +47,12 @@ service AegisRuntime {
 
   // Destroy a workspace volume after pipeline completion or failure (ADR-087).
   rpc DestroyWorkspaceVolume(DestroyWorkspaceVolumeRequest) returns (DestroyWorkspaceVolumeResponse);
+
+  // Proxy a Cortex pattern query through the Orchestrator (callers never connect to Cortex directly).
+  rpc QueryCortexPatterns(QueryCortexPatternsRequest) returns (QueryCortexPatternsResponse);
+
+  // Proxy a Cortex pattern store through the Orchestrator (callers never connect to Cortex directly).
+  rpc StoreCortexPattern(StoreCortexPatternRequest) returns (StoreCortexPatternResponse);
 }
 
 // =============================================================================
@@ -449,4 +455,50 @@ message DestroyWorkspaceVolumeRequest {
 message DestroyWorkspaceVolumeResponse {
   // Whether the volume was successfully destroyed.
   bool destroyed = 1;
+}
+
+// =============================================================================
+// QueryCortexPatterns / StoreCortexPattern RPCs
+// Cortex pattern proxy messages — thin wrappers over CortexService types.
+// The Orchestrator proxies these calls to CortexService; callers never connect
+// to Cortex directly.
+// =============================================================================
+
+message QueryCortexPatternsRequest {
+  string error_signature = 1;
+  optional string error_type = 2;
+  optional uint32 limit = 3;
+  optional float min_success_score = 4;
+  string tenant_id = 5;
+}
+
+message QueryCortexPatternsResponse {
+  repeated CortexPatternProto patterns = 1;
+}
+
+message CortexPatternProto {
+  string pattern_id = 1;
+  string error_signature = 2;
+  string error_type = 3;
+  string solution_approach = 4;
+  optional string solution_code = 5;
+  float success_score = 6;
+  uint32 frequency = 7;
+}
+
+message StoreCortexPatternRequest {
+  string error_signature = 1;
+  string error_type = 2;
+  string error_message = 3;
+  string solution_approach = 4;
+  optional string solution_code = 5;
+  optional string agent_id = 6;
+  repeated string tags = 7;
+  string tenant_id = 8;
+}
+
+message StoreCortexPatternResponse {
+  string pattern_id = 1;
+  bool deduplicated = 2;
+  uint32 new_frequency = 3;
 }

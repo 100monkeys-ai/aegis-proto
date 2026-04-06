@@ -4,6 +4,8 @@
 
 syntax = "proto3";
 
+// proto-version: 1
+
 package aegis.cortex.v1;
 
 service CortexService {
