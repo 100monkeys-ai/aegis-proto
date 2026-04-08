@@ -359,6 +359,10 @@ message ExecuteContainerRunRequest {
   uint32 max_attempts = 13;
   // Tenant slug; used for tenant-scoped volume paths and resource accounting.
   string tenant_id = 14;
+  // UUID of the workflow execution that owns the workspace volume.
+  // Used by FSAL to authorize VolumeOwnership::WorkflowExecution without
+  // mutating DB ownership on every ContainerRun step.
+  string workflow_execution_id = 15;
 }
 
 message ExecuteContainerRunResponse {
