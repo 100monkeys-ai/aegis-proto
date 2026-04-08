@@ -428,6 +428,9 @@ message SyncConfigInner {
   // Controller compares this against the latest version to determine whether
   // a delta is needed.
   string current_config_version = 2;
+
+  // Tenant slug; scopes config sync to a specific tenant's configuration subset.
+  optional string tenant_id = 3;
 }
 
 message SyncConfigResponse {
