@@ -531,3 +531,181 @@ message InvokeOutputHandlerResponse {
   string result = 2;
   string error = 3;
 }
+
+// =============================================================================
+// FSAL Service (ADR-107)
+// Exposes AegisFSAL operations over gRPC for the host-side FUSE daemon.
+// Every RPC delegates to the same FSAL instance used by the NFS gateway,
+// preserving identical authorization, audit, and policy enforcement.
+// =============================================================================
+
+service FsalService {
+  rpc Getattr(FsalGetattrRequest) returns (FsalGetattrResponse);
+  rpc Lookup(FsalLookupRequest) returns (FsalLookupResponse);
+  rpc Readdir(FsalReaddirRequest) returns (FsalReaddirResponse);
+  rpc Read(FsalReadRequest) returns (FsalReadResponse);
+  rpc Write(FsalWriteRequest) returns (FsalWriteResponse);
+  rpc CreateFile(FsalCreateFileRequest) returns (FsalCreateFileResponse);
+  rpc CreateDirectory(FsalMutateRequest) returns (FsalMutateResponse);
+  rpc DeleteFile(FsalMutateRequest) returns (FsalMutateResponse);
+  rpc DeleteDirectory(FsalMutateRequest) returns (FsalMutateResponse);
+  rpc Rename(FsalRenameRequest) returns (FsalMutateResponse);
+}
+
+// =============================================================================
+// FUSE Mount Service (ADR-107)
+// The orchestrator calls the host-side FUSE daemon to mount/unmount
+// volumes. The daemon creates FUSE mounts in the host's mount namespace.
+// =============================================================================
+
+service FuseMountService {
+  rpc Mount(FuseMountRequest) returns (FuseMountResponse);
+  rpc Unmount(FuseUnmountRequest) returns (FuseUnmountResponse);
+}
+
+// =============================================================================
+// FSAL Service Messages (ADR-107)
+// =============================================================================
+
+// Embedded access policy for FSAL operations.
+// Maps directly to the domain FsalAccessPolicy value object.
+message FsalAccessPolicy {
+  repeated string read_paths = 1;
+  repeated string write_paths = 2;
+}
+
+message FsalGetattrRequest {
+  string execution_id = 1;
+  string volume_id = 2;
+  string path = 3;
+  // UID/GID for attribute squashing (ADR-036).
+  uint32 container_uid = 4;
+  uint32 container_gid = 5;
+}
+
+message FsalGetattrResponse {
+  uint64 size = 1;
+  uint32 mode = 2;
+  uint32 nlink = 3;
+  int64 atime = 4;
+  int64 mtime = 5;
+  int64 ctime = 6;
+  // "file", "directory", or "symlink"
+  string file_type = 7;
+}
+
+message FsalLookupRequest {
+  string execution_id = 1;
+  string volume_id = 2;
+  string parent_path = 3;
+  string name = 4;
+}
+
+message FsalLookupResponse {
+  // Opaque serialized AegisFileHandle (bincode bytes).
+  bytes file_handle = 1;
+}
+
+message FsalReaddirRequest {
+  string execution_id = 1;
+  string volume_id = 2;
+  string path = 3;
+  FsalAccessPolicy policy = 4;
+}
+
+message FsalReaddirResponse {
+  repeated FsalDirEntry entries = 1;
+}
+
+message FsalDirEntry {
+  string name = 1;
+  // "file", "directory", or "symlink"
+  string file_type = 2;
+}
+
+message FsalReadRequest {
+  string execution_id = 1;
+  string volume_id = 2;
+  string path = 3;
+  FsalAccessPolicy policy = 4;
+  uint64 offset = 5;
+  uint32 size = 6;
+}
+
+message FsalReadResponse {
+  bytes data = 1;
+}
+
+message FsalWriteRequest {
+  string execution_id = 1;
+  string volume_id = 2;
+  string path = 3;
+  FsalAccessPolicy policy = 4;
+  uint64 offset = 5;
+  bytes data = 6;
+}
+
+message FsalWriteResponse {
+  uint32 bytes_written = 1;
+}
+
+message FsalCreateFileRequest {
+  string execution_id = 1;
+  string volume_id = 2;
+  string path = 3;
+  FsalAccessPolicy policy = 4;
+}
+
+message FsalCreateFileResponse {
+  // Opaque serialized AegisFileHandle (bincode bytes).
+  bytes file_handle = 1;
+}
+
+// Generic mutate request for create_directory, delete_file, delete_directory.
+message FsalMutateRequest {
+  string execution_id = 1;
+  string volume_id = 2;
+  string path = 3;
+  FsalAccessPolicy policy = 4;
+}
+
+// Generic mutate response (empty on success; gRPC status conveys errors).
+message FsalMutateResponse {}
+
+message FsalRenameRequest {
+  string execution_id = 1;
+  string volume_id = 2;
+  string from_path = 3;
+  string to_path = 4;
+  FsalAccessPolicy policy = 5;
+}
+
+// =============================================================================
+// FUSE Mount Service Messages (ADR-107)
+// =============================================================================
+
+message FuseMountRequest {
+  string volume_id = 1;
+  string execution_id = 2;
+  string mount_point = 3;
+  repeated string read_paths = 4;
+  repeated string write_paths = 5;
+  uint32 container_uid = 6;
+  uint32 container_gid = 7;
+  // Optional workflow execution ID for WorkflowExecution ownership.
+  string workflow_execution_id = 8;
+}
+
+message FuseMountResponse {
+  // The host path where the FUSE filesystem was mounted.
+  string mountpoint = 1;
+}
+
+message FuseUnmountRequest {
+  string volume_id = 1;
+  string execution_id = 2;
+}
+
+message FuseUnmountResponse {
+  bool unmounted = 1;
+}
