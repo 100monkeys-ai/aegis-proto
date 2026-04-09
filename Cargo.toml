@@ -1,6 +1,6 @@
 [package]
 name = "aegis-orchestrator-proto"
-version = "0.14.0-pre-alpha"
+version = "0.15.0-pre-alpha"
 edition = "2021"
 authors = ["100monkeys AI, Inc."]
 description = "Canonical protobuf definitions and Rust bindings for the 100monkeys.ai AEGIS orchestrator"
