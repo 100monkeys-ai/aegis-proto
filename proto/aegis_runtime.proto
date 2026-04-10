@@ -581,6 +581,8 @@ message FsalGetattrRequest {
   // UID/GID for attribute squashing (ADR-036).
   uint32 container_uid = 4;
   uint32 container_gid = 5;
+  // Optional workflow execution ID for WorkflowExecution-owned volumes (ADR-087).
+  string workflow_execution_id = 6;
 }
 
 message FsalGetattrResponse {
@@ -599,6 +601,8 @@ message FsalLookupRequest {
   string volume_id = 2;
   string parent_path = 3;
   string name = 4;
+  // Optional workflow execution ID for WorkflowExecution-owned volumes (ADR-087).
+  string workflow_execution_id = 5;
 }
 
 message FsalLookupResponse {
@@ -611,6 +615,8 @@ message FsalReaddirRequest {
   string volume_id = 2;
   string path = 3;
   FsalAccessPolicy policy = 4;
+  // Optional workflow execution ID for WorkflowExecution-owned volumes (ADR-087).
+  string workflow_execution_id = 5;
 }
 
 message FsalReaddirResponse {
@@ -630,6 +636,8 @@ message FsalReadRequest {
   FsalAccessPolicy policy = 4;
   uint64 offset = 5;
   uint32 size = 6;
+  // Optional workflow execution ID for WorkflowExecution-owned volumes (ADR-087).
+  string workflow_execution_id = 7;
 }
 
 message FsalReadResponse {
@@ -643,6 +651,8 @@ message FsalWriteRequest {
   FsalAccessPolicy policy = 4;
   uint64 offset = 5;
   bytes data = 6;
+  // Optional workflow execution ID for WorkflowExecution-owned volumes (ADR-087).
+  string workflow_execution_id = 7;
 }
 
 message FsalWriteResponse {
@@ -654,6 +664,8 @@ message FsalCreateFileRequest {
   string volume_id = 2;
   string path = 3;
   FsalAccessPolicy policy = 4;
+  // Optional workflow execution ID for WorkflowExecution-owned volumes (ADR-087).
+  string workflow_execution_id = 5;
 }
 
 message FsalCreateFileResponse {
@@ -667,6 +679,8 @@ message FsalMutateRequest {
   string volume_id = 2;
   string path = 3;
   FsalAccessPolicy policy = 4;
+  // Optional workflow execution ID for WorkflowExecution-owned volumes (ADR-087).
+  string workflow_execution_id = 5;
 }
 
 // Generic mutate response (empty on success; gRPC status conveys errors).
@@ -678,6 +692,8 @@ message FsalRenameRequest {
   string from_path = 3;
   string to_path = 4;
   FsalAccessPolicy policy = 5;
+  // Optional workflow execution ID for WorkflowExecution-owned volumes (ADR-087).
+  string workflow_execution_id = 6;
 }
 
 // =============================================================================
