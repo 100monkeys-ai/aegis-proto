@@ -95,6 +95,9 @@ message FsalMount {
   string volume_id = 1;
   string mount_path = 2;
   bool read_only = 3;
+  // Canonical NFS export path for this volume (e.g. /aegis/volumes/{tenant_id}/{volume_id}).
+  // Populated by the Orchestrator from NfsVolumeRegistry before invoking the SEAL gateway.
+  string remote_path = 4;
 }
 
 message InvokeCliRequest {
