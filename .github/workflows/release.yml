@@ -6,11 +6,11 @@ name: Release aegis-orchestrator-proto
 on:
   push:
     tags:
-      - '*.*.*'  # Matches 0.1.0, 0.2.0-pre-alpha, etc.
+      - "*.*.*" # Matches 0.1.0, 0.2.0-pre-alpha, etc.
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag (e.g., v1.0.0)'
+        description: "Version tag (e.g., v1.0.0)"
         required: true
         type: string
 

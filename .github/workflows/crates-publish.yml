@@ -6,11 +6,11 @@ name: Publish aegis-orchestrator-proto to crates.io
 on:
   push:
     tags:
-      - '*.*.*'
+      - "*.*.*"
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Perform a dry run (no actual publishing)'
+        description: "Perform a dry run (no actual publishing)"
         required: false
         type: boolean
         default: false
