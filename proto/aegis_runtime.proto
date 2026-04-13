@@ -524,6 +524,9 @@ message InvokeOutputHandlerRequest {
   string final_output = 3;
   // JSON-serialized OutputHandlerConfig
   string handler_config_json = 4;
+  // Natural-language intent context from the workflow, passed through to the
+  // output handler so it can tailor post-processing to the original request.
+  optional string intent = 5;
 }
 
 message InvokeOutputHandlerResponse {
