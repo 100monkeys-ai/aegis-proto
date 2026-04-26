@@ -88,6 +88,24 @@ message ExecuteAgentRequest {
   // NFS remote path for the workspace volume in SeaweedFS.
   // When set, used directly for NFS registration instead of constructing a path.
   optional string workspace_remote_path = 12;
+  // Structured references to files attached at dispatch time (ADR-113).
+  // Each ref points to a file in a tenant-scoped volume that the agent may
+  // read via the aegis.attachment.read tool. Empty when the dispatch carries
+  // no attachments. The shape mirrors workspace_volume_id — structured, not
+  // an opaque fileId.
+  repeated AttachmentRef attachments = 13;
+}
+
+// Structured reference to a file attached at dispatch time (ADR-113).
+// Carried on ExecuteAgentRequest so attachments are deterministic at dispatch
+// time per ADR-092 and never LLM-mediated.
+message AttachmentRef {
+  string volume_id = 1;
+  string path = 2;
+  string name = 3;
+  string mime_type = 4;
+  int64 size = 5;
+  optional string sha256 = 6;
 }
 
 message ExecutionEvent {
