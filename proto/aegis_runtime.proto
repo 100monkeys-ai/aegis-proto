@@ -582,6 +582,19 @@ service FsalService {
 service FuseMountService {
   rpc Mount(FuseMountRequest) returns (FuseMountResponse);
   rpc Unmount(FuseUnmountRequest) returns (FuseUnmountResponse);
+  rpc Health(FuseHealthRequest) returns (FuseHealthResponse);
+}
+
+// FUSE daemon health probe (belt-and-suspenders). The orchestrator calls this
+// before issuing the first Mount on a spawn, so a wedged daemon fails fast
+// rather than hanging the user run on a 30s mount timeout.
+message FuseHealthRequest {}
+message FuseHealthResponse {
+  bool healthy = 1;
+  uint64 active_mount_count = 2;
+  uint64 degraded_mount_count = 3;
+  uint64 oldest_mount_age_secs = 4;
+  string version = 5;
 }
 
 // =============================================================================
