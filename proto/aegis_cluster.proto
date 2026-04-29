@@ -226,6 +226,15 @@ message AttestNodeRequest {
   // "host:port" where this node's gRPC server listens; recorded by the controller
   // for use in RouteExecution responses and ListPeers output.
   string grpc_address = 5;
+
+  // Cluster enrolment token (audit 002 §4.9). Single-use, opaque token of the
+  // form "<token_id>.<secret_b64>" issued by the controller's admin path
+  // (separate from the attestation surface), bound to this `node_id`. The
+  // controller validates the token, atomically marks it redeemed, and pins
+  // `node_id → public_key` on first success. Required for all non-edge roles
+  // (Worker, Controller, Hybrid). Edge role uses the bootstrap_proof on
+  // ChallengeNode instead.
+  string enrolment_token = 6;
 }
 
 message AttestNodeResponse {
