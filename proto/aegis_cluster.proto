@@ -16,6 +16,8 @@ option java_outer_classname = "AegisClusterProto";
 option go_package = "github.com/100monkeys-ai/aegis-proto/gen/go/cluster/v1;clusterv1";
 
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/struct.proto";
 import "aegis_runtime.proto";
 
 // =============================================================================
@@ -88,6 +90,27 @@ service NodeClusterService {
   // Intended for operator tooling and The Synapse control plane UI.
   // payload: serialized ListPeersInner.
   rpc ListPeers(ListPeersRequest) returns (ListPeersResponse);
+
+  // ── Edge Mode (ADR-117) ────────────────────────────────────────────────────
+
+  // Bidirectional pull-based stream from an edge daemon to the controller or
+  // Relay Coordinator. The first EdgeEvent on the stream MUST be EdgeEvent.Hello
+  // carrying a SealNodeEnvelope; every subsequent message carries its own
+  // SealNodeEnvelope per ADR-035 / ADR-059 discipline. The server uses the
+  // long-lived stream to deliver EdgeCommand reverse-RPCs (InvokeTool, Cancel,
+  // PushConfig, Drain, Shutdown) so daemons behind NAT remain reachable.
+  // Activated for NODE_ROLE_CONTROLLER, NODE_ROLE_HYBRID, and
+  // NODE_ROLE_RELAY_COORDINATOR.
+  rpc ConnectEdge(stream EdgeEvent) returns (stream EdgeCommand);
+
+  // Atomic Ed25519 key rotation for an enrolled edge daemon. The request
+  // carries a SealNodeEnvelope signed by the *current* (old) key plus a
+  // signature over a deterministic challenge using the *new* key — the
+  // dual-signature requirement proves both authority (old key) and possession
+  // (new key). Server atomically updates edge_daemons.public_key, blacklists
+  // the prior NodeSecurityToken, issues a new one, and records both pubkeys
+  // for the overlap window so the in-flight ConnectEdge stream survives.
+  rpc RotateEdgeKey(RotateEdgeKeyRequest) returns (RotateEdgeKeyResponse);
 }
 
 // =============================================================================
@@ -101,7 +124,9 @@ service NodeClusterService {
 // using the node's registered public key before deserialising payload.
 message SealNodeEnvelope {
   // RS256 JWT issued by the controller's OpenBao Transit key during ChallengeNode.
-  // Contains: node_id, role, capabilities_hash, iat, exp.
+  // Claims: node_id, role, capabilities_hash, iat, exp; for edge daemons
+  // (ADR-117) additionally includes `tid` (persistent tenant binding) and
+  // `cep` (controller endpoint advertised at enrollment time).
   string node_security_token = 1;
 
   // Ed25519 signature over payload using the node's private key.
@@ -137,6 +162,14 @@ enum NodeRole {
   NODE_ROLE_WORKER = 2;
   // Capable of both controller and worker duties (single-node / dev deployments).
   NODE_ROLE_HYBRID = 3;
+  // ADR-117: User-installed daemon enrolled via an EnrollmentToken; tenant-bound
+  // via the `tid` claim on its NodeSecurityToken. Connects via a long-lived
+  // ConnectEdge stream and is excluded from worker selection.
+  NODE_ROLE_EDGE = 4;
+  // ADR-117: Multi-tenant SaaS deployment of NodeClusterService specialized for
+  // edge enrollment and routing (e.g. relay.myzaru.com). Re-uses every existing
+  // entity, repository, and SEAL discipline — not a separate service.
+  NODE_ROLE_RELAY_COORDINATOR = 5;
 }
 
 // =============================================================================
@@ -216,6 +249,16 @@ message ChallengeNodeRequest {
 
   // Ed25519 signature over the challenge_nonce bytes returned in AttestNodeResponse.
   bytes challenge_signature = 3;
+
+  // ADR-117: Optional bootstrap proof for non-worker roles. For NODE_ROLE_EDGE
+  // the daemon attaches the short-lived enrollment JWT (claims: tid, sub, jti,
+  // exp, nbf, aud="edge-enrollment", iss, cep). The server validates the
+  // signature/audience/expiry/nbf, atomically redeems `jti`, persists the
+  // EdgeDaemon row binding node_id ↔ tenant_id, and issues a NodeSecurityToken
+  // whose claims include `tid` and `cep`.
+  oneof bootstrap_proof {
+    string enrollment_token = 4;
+  }
 }
 
 message ChallengeNodeResponse {
@@ -495,4 +538,245 @@ message ListPeersResponse {
 
   // UUID of the cluster as assigned during RegisterNode.
   string cluster_id = 2;
+}
+
+// =============================================================================
+// Edge Mode (ADR-117)
+// =============================================================================
+
+// Inner SEAL envelope (ADR-035) carried inside an EdgeCommand.InvokeTool. The
+// outer SealNodeEnvelope on the ConnectEdge stream proves daemon identity
+// (node-to-node); this inner envelope carries the originating user / service-
+// account principal so the edge daemon can resolve and enforce the named
+// SecurityContext locally — identical to what flows from the orchestrator to
+// the SEAL Tooling Gateway today.
+message SealEnvelope {
+  // RS256 JWT representing the originating user or service-account principal.
+  string user_security_token = 1;
+
+  // Effective tenant id (post X-Tenant-Id delegation per ADR-100).
+  string tenant_id = 2;
+
+  // Named security context (ADR-083) the edge must resolve from its merged
+  // hierarchical config and apply to this tool invocation.
+  string security_context_name = 3;
+
+  // Tool-call payload (canonical JSON-equivalent structure).
+  google.protobuf.Struct payload = 4;
+
+  // Ed25519 signature over the canonicalised envelope, per ADR-035.
+  bytes signature = 5;
+}
+
+// Capabilities advertised by an edge daemon. Combines daemon-side facts
+// (`os`, `arch`, `local_tools`, `mount_points`, `custom_labels`) with an
+// embedded NodeCapabilities for hardware/runtime parity with worker nodes.
+// `tags` are operator-managed server-side classifiers — they are echoed back
+// here for completeness in CapabilityUpdate snapshots but the daemon MUST NOT
+// originate them; the EdgeDaemon row is the source of truth for tags and the
+// server overwrites this field on read.
+message EdgeCapabilities {
+  // Operating system identifier ("linux", "darwin", "windows").
+  string os = 1;
+
+  // CPU architecture ("x86_64", "aarch64").
+  string arch = 2;
+
+  // Local tool dispatchers available on the host (e.g. "shell", "docker",
+  // "kubectl"). Used by selectors with `tools=` predicates.
+  repeated string local_tools = 3;
+
+  // POSIX mount points the daemon is willing to expose to fs.* tools.
+  repeated string mount_points = 4;
+
+  // Daemon-advertised key/value labels (e.g. {"region": "home",
+  // "gpu": "rtx-4090"}).
+  map<string, string> custom_labels = 5;
+
+  // Operator-managed flat classifiers (e.g. ["prod", "db-host"]). Server-side
+  // source of truth — not authored by the daemon.
+  repeated string tags = 6;
+
+  // Embedded hardware/runtime capability advertisement (parity with worker
+  // nodes).
+  NodeCapabilities node_capabilities = 7;
+}
+
+// Result of a single InvokeTool dispatch executed on an edge daemon.
+message EdgeResult {
+  // True if the tool returned successfully (exit_code == 0 and no transport
+  // error); false otherwise.
+  bool ok = 1;
+
+  // Process exit code for command-style tools. 0 for non-process tools that
+  // completed successfully.
+  int32 exit_code = 2;
+
+  // Captured stdout (may be empty when streaming via CommandProgress).
+  bytes stdout = 3;
+
+  // Captured stderr (may be empty when streaming via CommandProgress).
+  bytes stderr = 4;
+
+  // Tool-specific structured result for non-process tools.
+  google.protobuf.Struct structured_result = 5;
+
+  // Coarse error classifier ("timeout", "cancelled", "denied",
+  // "tool_not_found", "internal", "edge_disconnected"). Empty on success.
+  string error_kind = 6;
+
+  // Human-readable error message; empty on success.
+  string error_message = 7;
+}
+
+// Daemon → server messages on the ConnectEdge stream. The first message MUST
+// be `Hello`; subsequent messages may be any other variant.
+message EdgeEvent {
+  oneof event {
+    HelloEvent hello = 1;
+    HeartbeatEvent heartbeat = 2;
+    CommandResultEvent command_result = 3;
+    CommandProgressEvent command_progress = 4;
+    CapabilityUpdateEvent capability_update = 5;
+  }
+}
+
+// First message on a freshly-opened ConnectEdge stream. Carries the daemon's
+// SealNodeEnvelope (proving identity), advertised capabilities, and a
+// stream_id minted by the daemon for log correlation. `last_seen_command_id`
+// is informational — v1 has no replay; the field exists so server-side
+// observability can detect command-id gaps after a reconnect.
+message HelloEvent {
+  SealNodeEnvelope envelope = 1;
+  EdgeCapabilities capabilities = 2;
+  string stream_id = 3;
+  optional string last_seen_command_id = 4;
+}
+
+// Per-stream liveness ping (replaces unary Heartbeat for edge daemons).
+message HeartbeatEvent {
+  SealNodeEnvelope envelope = 1;
+  // Number of in-flight tool invocations on this daemon.
+  uint32 active_invocations = 2;
+}
+
+// Terminal result for a previously-issued InvokeTool command.
+message CommandResultEvent {
+  SealNodeEnvelope envelope = 1;
+  string command_id = 2;
+  EdgeResult result = 3;
+}
+
+// Streaming chunk for a previously-issued InvokeTool command. Sequence
+// numbers are per-command and monotonically increasing; `stderr` flags
+// chunks belonging to the stderr stream.
+message CommandProgressEvent {
+  SealNodeEnvelope envelope = 1;
+  string command_id = 2;
+  bytes chunk = 3;
+  uint32 sequence = 4;
+  bool stderr = 5;
+}
+
+// Hot capability update; server hot-updates its in-memory view and persists
+// on the next heartbeat checkpoint. `tags` on the inner capabilities are
+// ignored — operator-managed tags can only be mutated server-side.
+message CapabilityUpdateEvent {
+  SealNodeEnvelope envelope = 1;
+  EdgeCapabilities capabilities = 2;
+}
+
+// Server → daemon messages on the ConnectEdge stream.
+message EdgeCommand {
+  oneof command {
+    InvokeToolCommand invoke_tool = 1;
+    CancelCommand cancel = 2;
+    EdgePushConfigCommand push_config = 3;
+    EdgeDrainCommand drain = 4;
+    EdgeShutdownCommand shutdown = 5;
+  }
+}
+
+// Reverse-RPC: invoke a tool on the edge daemon. `command_id` is a UUID minted
+// by the dispatcher; the daemon echoes it on every CommandProgressEvent and
+// on the terminal CommandResultEvent. The daemon resolves
+// `security_context_name` against its local merged config and verifies
+// `seal_envelope` before dispatching to a local built-in dispatcher or MCP
+// server.
+message InvokeToolCommand {
+  string command_id = 1;
+  string security_context_name = 2;
+  SealEnvelope seal_envelope = 3;
+  string tool_name = 4;
+  google.protobuf.Struct args = 5;
+  google.protobuf.Duration deadline = 6;
+}
+
+// Cancel a previously-issued InvokeToolCommand. Best-effort; the daemon
+// responds with a CommandResultEvent whose `error_kind = "cancelled"` once
+// cancellation is observed.
+message CancelCommand {
+  string command_id = 1;
+}
+
+// Push a hierarchical config delta to the daemon (per-tenant overrides,
+// security-context changes, etc.).
+message EdgePushConfigCommand {
+  google.protobuf.Struct merged_config_delta = 1;
+}
+
+// Refuse new InvokeTool dispatches; finish in-flight commands.
+message EdgeDrainCommand {}
+
+// Drain then exit the daemon process.
+message EdgeShutdownCommand {}
+
+// =============================================================================
+// RotateEdgeKey RPC (ADR-117)
+// =============================================================================
+
+message RotateEdgeKeyRequest {
+  // Outer envelope signed by the *current* (old) key — proves authority to
+  // rotate. payload deserialises to RotateEdgeKeyInner after signature
+  // verification.
+  SealNodeEnvelope current_envelope = 1;
+
+  // Raw 32-byte Ed25519 public key to install. Must differ from the current
+  // public key on file.
+  bytes new_public_key = 2;
+
+  // Ed25519 signature using the *new* private key over a deterministic
+  // challenge constructed by the daemon as
+  //   sha256("aegis-edge-rotate" || node_id || new_public_key || nonce)
+  // — proves possession of the new key. The nonce is conveyed in the inner
+  // payload.
+  bytes signature_with_new_key = 3;
+}
+
+// Plaintext inner payload for RotateEdgeKey; serialised into
+// SealNodeEnvelope.payload.
+message RotateEdgeKeyInner {
+  string node_id = 1;
+
+  // Echoed for binding — must equal RotateEdgeKeyRequest.new_public_key.
+  bytes new_public_key = 2;
+
+  // 32-byte rotation nonce mixed into the deterministic challenge.
+  bytes nonce = 3;
+}
+
+message RotateEdgeKeyResponse {
+  // Replacement RS256 JWT bound to new_public_key. The daemon switches to this
+  // token on its next outbound envelope; the in-flight ConnectEdge stream is
+  // *not* dropped.
+  string node_security_token = 1;
+
+  // New token expiry; daemon should re-attest before this timestamp.
+  google.protobuf.Timestamp expires_at = 2;
+
+  // Until this timestamp the server will accept envelopes signed by either
+  // the old or the new key (overlap window) so any in-flight messages signed
+  // before the swap survive. Absent when the old key is hard-revoked
+  // immediately.
+  optional google.protobuf.Timestamp overlap_until = 3;
 }
