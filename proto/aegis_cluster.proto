@@ -111,6 +111,14 @@ service NodeClusterService {
   // the prior NodeSecurityToken, issues a new one, and records both pubkeys
   // for the overlap window so the in-flight ConnectEdge stream survives.
   rpc RotateEdgeKey(RotateEdgeKeyRequest) returns (RotateEdgeKeyResponse);
+
+  // ADR-117: SaaS deployment mints edge enrollment tokens here. Only the
+  // relay-coordinator AppRole holds OpenBao policy
+  // `transit/sign/edge-enrollment-token`. Auth: bearer JWT in `authorization`
+  // metadata key (validated per-handler), tenant in `x-aegis-tenant`. Not a
+  // SealNodeEnvelope — the principal is a human/service-account, not a node.
+  rpc IssueEnrollmentToken(IssueEnrollmentTokenRequest)
+      returns (IssueEnrollmentTokenResponse);
 }
 
 // =============================================================================
@@ -788,4 +796,29 @@ message RotateEdgeKeyResponse {
   // before the swap survive. Absent when the old key is hard-revoked
   // immediately.
   optional google.protobuf.Timestamp overlap_until = 3;
+}
+
+// =============================================================================
+// IssueEnrollmentToken RPC (ADR-117)
+// =============================================================================
+
+// Request from a Controller orchestrator (or any caller authorised via
+// Bearer JWT) to mint a short-lived edge enrollment token. The relay-coordinator
+// is the only deployment that holds the OpenBao policy
+// `transit/sign/edge-enrollment-token`, so issuance is centralised here in the
+// SaaS topology.
+message IssueEnrollmentTokenRequest {
+  // JWT `sub` claim — display label for the host. Free-form.
+  string issued_to = 1;
+}
+
+message IssueEnrollmentTokenResponse {
+  string token = 1;
+
+  // RFC3339, byte-for-byte parity with the prior REST shape so Zaru-side
+  // types are unchanged.
+  string expires_at = 2;
+  string controller_endpoint = 3;
+  string qr_payload = 4;
+  string command_hint = 5;
 }
