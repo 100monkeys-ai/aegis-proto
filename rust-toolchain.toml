@@ -1,0 +1,35 @@
+# Pins the Rust toolchain for this repository.
+#
+# Why this file exists: `.github/workflows/crates-publish.yml` installed
+# `dtolnay/rust-toolchain@stable` at all three call sites with no toolchain file, so
+# the compiler would be whatever `stable` resolved to on the day a run happened and
+# this repository's verdict would be a function of the calendar rather than of the
+# tree. `aegis-orchestrator` has already been bitten by exactly that: the identical
+# tree passed Pipeline on 2026-05-09 (run 25590016717) and failed it on 2026-09-04
+# (run 33909474652) with four clippy errors clippy had gained in between.
+#
+# 1.98.1 is a judgement here, not a measurement, and the difference is worth stating.
+# Every other AEGIS repository took its pin from its own CI log. This repository has
+# no log to read: all three `dtolnay` sites live in `crates-publish.yml`, which is
+# tag-triggered, and that workflow has never run — every run in this repository's
+# history is `Security Audit`. 1.98.1 is chosen because it is what `stable` resolved
+# to on 2026-09-04 (measured in aegis-cortex's CI run 33908346207, which printed
+# `rustc 1.98.1 (48a229cea 2026-09-01)`), so the pin freezes the toolchain where it
+# already was rather than moving it; and because `aegis-orchestrator` and
+# `aegis-seal-gateway` both pin 1.98.1 and both consume this crate by path, so a
+# divergent pin here would be a trap for whoever hits it first.
+#
+# The first `crates-publish` run is the measurement. If it disagrees with this pin,
+# this file is what to correct.
+#
+# `components` is load-bearing: rustup treats `stable` and `1.98.1` as separate
+# toolchain installations, so a component installed into `stable` is not visible to
+# `1.98.1`.
+#
+# Raising this version is a deliberate act: bump it, run the gates, and fix what the
+# new toolchain reports in the same change.
+
+[toolchain]
+channel = "1.98.1"
+components = ["clippy", "rustfmt"]
+profile = "minimal"
