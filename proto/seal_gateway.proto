@@ -15,6 +15,76 @@ service GatewayInvocationService {
   rpc InvokeCli(InvokeCliRequest) returns (InvokeCliResponse);
   rpc ExploreApi(ExploreApiRequest) returns (ExploreApiResponse);
   rpc ListTools(ListToolsRequest) returns (ListToolsResponse);
+  // Call one tool of a remote MCP server registered with the gateway
+  // (AEGIS ADR-132 G1). A tool is not a workflow, so it has its own RPC.
+  rpc InvokeTool(InvokeToolRequest) returns (InvokeToolResponse);
+}
+
+// Who a gateway call acts for (AEGIS ADR-132 G2). The orchestrator sets it
+// from the execution (its initiating user and the calling agent), never from
+// a token a caller supplied, so a scheduled or workflow-started run carries
+// the same identity as an interactive one.
+message ActingIdentity {
+  // The execution's initiating user: the Keycloak subject, the value the
+  // orchestrator stores as a credential binding's owner.
+  string user_id = 1;
+  // The calling agent's id (a UUID).
+  string agent_id = 2;
+  // The workflow's id (a UUID) when the execution runs inside a workflow;
+  // empty otherwise.
+  string workflow_id = 3;
+}
+
+// The kind of a resolved credential, which says how the gateway presents it.
+enum CredentialKind {
+  CREDENTIAL_KIND_UNSPECIFIED = 0;
+  // Sent as `Authorization: Bearer <value>`.
+  CREDENTIAL_KIND_BEARER_TOKEN = 1;
+}
+
+// A person's credential, resolved by the orchestrator for this call: the
+// orchestrator owns the bindings and the vault, checks the binding's grant to
+// the acting agent or workflow, and refreshes an OAuth2 access token before
+// it is sent (AEGIS ADR-132, ADR-125 Update clause 4).
+//
+// SENSITIVE. `value` is a secret. It travels only on a TLS channel: the
+// gateway refuses a request carrying one on a plaintext listener. No side
+// writes it to a log line, an error, an event, an audit row, a metric label
+// or storage; the gateway holds it in memory only for the call or the MCP
+// session it authenticates.
+message ResolvedCredential {
+  CredentialKind kind = 1;
+  // SENSITIVE: the secret itself.
+  string value = 2;
+}
+
+message InvokeToolRequest {
+  string execution_id = 1;
+  // Tenant slug derived from the caller's security context.
+  string tenant_id = 2;
+  ActingIdentity acting = 3;
+  // The registered server's name.
+  string server = 4;
+  // The tool's own name on that server (exposed as `<server>.<tool>`).
+  string tool = 5;
+  // The `tools/call` arguments object as the caller gave it, unchanged.
+  string arguments_json = 6;
+  // SENSITIVE: the acting user's credential for `server`; absent when the
+  // user holds no binding granted to the acting agent or workflow, in which
+  // case a server that needs one answers CREDENTIAL_BINDING_REQUIRED.
+  ResolvedCredential credential = 7;
+}
+
+message InvokeToolResponse {
+  // The MCP `tools/call` result object, unchanged.
+  string result_json = 1;
+}
+
+// A remote MCP server the acting user holds a granted binding for.
+message BoundServer {
+  string server = 1;
+  // SENSITIVE: see ResolvedCredential.
+  ResolvedCredential credential = 2;
 }
 
 message WorkflowStep {
@@ -85,6 +155,8 @@ message InvokeWorkflowRequest {
   string zaru_user_token = 4;
   // Tenant slug derived from the caller's security context.
   string tenant_id = 5;
+  // Who the call acts for, for audit (AEGIS ADR-132 G2).
+  ActingIdentity acting = 6;
 }
 
 message InvokeWorkflowResponse {
@@ -108,6 +180,8 @@ message InvokeCliRequest {
   repeated FsalMount fsal_mounts = 5;
   // Tenant slug for tenant-scoped tool access and FSAL volume isolation.
   string tenant_id = 6;
+  // Who the call acts for, for audit (AEGIS ADR-132 G2).
+  ActingIdentity acting = 7;
 }
 
 message InvokeCliResponse {
@@ -125,6 +199,8 @@ message ExploreApiRequest {
   bool include_hateoas_hints = 6;
   // Tenant slug for tenant-scoped credential resolution.
   string tenant_id = 7;
+  // Who the call acts for, for audit (AEGIS ADR-132 G2).
+  ActingIdentity acting = 8;
 }
 
 message ExploreApiResponse {
@@ -133,11 +209,22 @@ message ExploreApiResponse {
   string operation_metadata_json = 3;
 }
 
-message ListToolsRequest {}
+message ListToolsRequest {
+  // Tenant slug derived from the caller's security context.
+  string tenant_id = 1;
+  // Who the listing is for (AEGIS ADR-132 G5).
+  ActingIdentity acting = 2;
+  // The remote MCP servers the acting user holds a binding for, granted to
+  // the acting agent or workflow, each with its credential; the listing adds
+  // each one's tools as `<server>.<tool>`.
+  repeated BoundServer bound_servers = 3;
+}
 
 message ToolSummary {
   string name = 1;
   string description = 2;
+  // "workflow", "cli", or "mcp" (a remote MCP server's tool, named
+  // `<server>.<tool>` and called with InvokeTool).
   string kind = 3;
   string input_schema_json = 4; // Full JSON Schema for the tool's input
   repeated string tags = 5;     // e.g., "read-only", "destructive", "network"
