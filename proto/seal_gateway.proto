@@ -78,6 +78,9 @@ message InvokeToolRequest {
 message InvokeToolResponse {
   // The MCP `tools/call` result object, unchanged.
   string result_json = 1;
+  // The `_grounding` object the server answered on this call's `initialize`,
+  // as JSON; empty when it answered none or null.
+  string grounding_json = 2;
 }
 
 // A remote MCP server the acting user holds a granted binding for.
