@@ -5,7 +5,7 @@
 
 use aegis_orchestrator_proto::aegis::runtime::v1::aegis_runtime_server::AegisRuntime;
 use aegis_orchestrator_proto::aegis::runtime::v1::{
-    RunRepositoryActionRequest, RunRepositoryActionResponse,
+    ExecuteContainerRunRequest, RunRepositoryActionRequest, RunRepositoryActionResponse,
 };
 use prost::Message;
 
@@ -137,4 +137,29 @@ fn an_empty_optional_is_on_the_wire_and_distinct_from_absent() {
     let received =
         RunRepositoryActionRequest::decode(empty.encode_to_vec().as_slice()).expect("decodes");
     assert_eq!(received.message.as_deref(), Some(""));
+}
+
+#[test]
+fn a_container_run_request_round_trips_network_mode() {
+    let sent = ExecuteContainerRunRequest {
+        execution_id: "run-1".to_string(),
+        name: "EXECUTE_TESTS".to_string(),
+        image: "docker.io/library/python:3.11-slim".to_string(),
+        network_mode: "egress".to_string(),
+        ..Default::default()
+    };
+
+    let received =
+        ExecuteContainerRunRequest::decode(sent.encode_to_vec().as_slice()).expect("decodes");
+
+    assert_eq!(
+        received.network_mode, "egress",
+        "network_mode did not survive encode and decode"
+    );
+    assert_eq!(received, sent);
+    assert_eq!(
+        ExecuteContainerRunRequest::default().network_mode,
+        "",
+        "an unset network_mode is not the default (empty)"
+    );
 }

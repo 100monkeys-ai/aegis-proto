@@ -425,6 +425,9 @@ message ExecuteContainerRunRequest {
   // Used by FSAL to authorize VolumeOwnership::WorkflowExecution without
   // mutating DB ownership on every ContainerRun step.
   string workflow_execution_id = 15;
+  // The step's network mode as the manifest names it: `egress` runs the step
+  // on the node's step network (ADR-141 F7); empty means the default.
+  string network_mode = 16;
 }
 
 message ExecuteContainerRunResponse {
