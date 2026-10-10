@@ -56,6 +56,13 @@ service AegisRuntime {
 
   // Invoke an output handler after workflow execution completes (ADR-103).
   rpc InvokeOutputHandler(InvokeOutputHandlerRequest) returns (InvokeOutputHandlerResponse);
+
+  // Run one of the workflow interpreter's own repository steps (ADR-141 F5):
+  // `diff`, `commit` or `land`, on the repository the workflow run holds.
+  // The worker calls it for a System state whose rendered command is
+  // `repository_diff`, `repository_commit` or `repository_land`, never
+  // ExecuteSystemCommand.
+  rpc RunRepositoryAction(RunRepositoryActionRequest) returns (RunRepositoryActionResponse);
 }
 
 // =============================================================================
@@ -219,6 +226,43 @@ message ExecuteSystemCommandResponse {
   string stdout = 2;
   string stderr = 3;
   uint64 duration_ms = 4;
+}
+
+// =============================================================================
+// RunRepositoryAction RPC (ADR-141 F5)
+// =============================================================================
+
+message RunRepositoryActionRequest {
+  // The workflow execution whose repository the step acts on. The run's
+  // repository, by its label; a run that holds none is refused with the
+  // sentence "this run holds no repository".
+  string workflow_execution_id = 1;
+  // One of `diff` (the run's change against the commit its work branch
+  // started from, as a unified diff), `commit` (every change on the work
+  // branch, as the person) or `land` (push the work branch, then fast-forward
+  // the binding's ref to it, after the person's approval). Any other value is
+  // refused.
+  string action = 2;
+  // The commit message, for `commit` only.
+  optional string message = 3;
+}
+
+message RunRepositoryActionResponse {
+  // The commit the step made (`commit`) or landed (`land`); absent for `diff`
+  // and on a refusal.
+  optional string commit_sha = 1;
+  // The run's work branch.
+  string branch = 2;
+  // The binding's ref, the branch a landing fast-forwards.
+  string ref = 3;
+  // The unified diff, for `diff` only. A diff past 1 MiB is refused with the
+  // sentence (ADR-136 G11c), never answered cut off.
+  optional string diff = 4;
+  // The refusal, in the orchestrator's words, when the step did not act:
+  // "this run holds no repository", "nothing to commit: working tree is
+  // clean", the remote-ahead and not-a-branch sentences of a landing, the
+  // diff's 1 MiB refusal. Absent when the step acted.
+  optional string sentence = 5;
 }
 
 // =============================================================================
