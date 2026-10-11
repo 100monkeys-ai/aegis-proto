@@ -63,6 +63,13 @@ service AegisRuntime {
   // `repository_diff`, `repository_commit` or `repository_land`, never
   // ExecuteSystemCommand.
   rpc RunRepositoryAction(RunRepositoryActionRequest) returns (RunRepositoryActionResponse);
+
+  // Run the workflow interpreter's own image generation step (ADR-143 I5a):
+  // generate images from a prompt with the node's image generation model and
+  // write them into the workflow execution's volume.
+  // The worker calls it for an Action state whose action is
+  // `image_generate`, never ExecuteSystemCommand or InvokeTool.
+  rpc RunImageGenerate(RunImageGenerateRequest) returns (RunImageGenerateResponse);
 }
 
 // =============================================================================
@@ -263,6 +270,50 @@ message RunRepositoryActionResponse {
   // clean", the remote-ahead and not-a-branch sentences of a landing, the
   // diff's 1 MiB refusal. Absent when the step acted.
   optional string sentence = 5;
+}
+
+// =============================================================================
+// RunImageGenerate RPC (ADR-143 I5a)
+// =============================================================================
+
+message RunImageGenerateRequest {
+  // The workflow execution whose volume the images are written into.
+  string workflow_execution_id = 1;
+  // What to draw, as the state's rendered `prompt`. Required.
+  string prompt = 2;
+  // The node's `image_generation` alias to use; absent, the node's first
+  // `image_generation` alias.
+  optional string alias = 3;
+  // The image size, as `<width>x<height>` (for example `1024x1024`).
+  optional string size = 4;
+  // How many images to generate, 1 to 4.
+  optional uint32 count = 5;
+  // The directory inside the workflow execution's volume the images are
+  // written under; absent, `generated/`.
+  optional string path = 6;
+}
+
+message RunImageGenerateResponse {
+  // Each image written, in the order generated; empty when nothing was
+  // generated.
+  repeated GeneratedFile files = 1;
+  // The refusal, in the orchestrator's words, when nothing was generated:
+  // "this node has no image generation model", and the size and count
+  // refusals of the image generation call. Absent when the step acted.
+  optional string sentence = 2;
+}
+
+// One image the step wrote, named by its volume and its path inside it; no
+// URL.
+message GeneratedFile {
+  // The volume the image was written into: the workflow execution's volume.
+  string volume_id = 1;
+  // The image's path inside that volume, under the request's `path`.
+  string path = 2;
+  // The image's MIME type, for example `image/png`.
+  string content_type = 3;
+  // The image's size in bytes.
+  uint64 size_bytes = 4;
 }
 
 // =============================================================================
