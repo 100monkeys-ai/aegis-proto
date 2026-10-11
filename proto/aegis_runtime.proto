@@ -59,7 +59,7 @@ service AegisRuntime {
 
   // Run one of the workflow interpreter's own repository steps (ADR-141 F5):
   // `diff`, `commit` or `land`, on the repository the workflow run holds.
-  // The worker calls it for a System state whose rendered command is
+  // The worker calls it for an Action state whose action is
   // `repository_diff`, `repository_commit` or `repository_land`, never
   // ExecuteSystemCommand.
   rpc RunRepositoryAction(RunRepositoryActionRequest) returns (RunRepositoryActionResponse);
