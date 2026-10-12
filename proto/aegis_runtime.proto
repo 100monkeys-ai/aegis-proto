@@ -669,6 +669,7 @@ service FsalService {
   rpc DeleteFile(FsalMutateRequest) returns (FsalMutateResponse);
   rpc DeleteDirectory(FsalMutateRequest) returns (FsalMutateResponse);
   rpc Rename(FsalRenameRequest) returns (FsalMutateResponse);
+  rpc Truncate(FsalTruncateRequest) returns (FsalMutateResponse);
 }
 
 // =============================================================================
@@ -825,6 +826,18 @@ message FsalRenameRequest {
   string to_path = 4;
   FsalAccessPolicy policy = 5;
   // Optional workflow execution ID for WorkflowExecution-owned volumes (ADR-087).
+  string workflow_execution_id = 6;
+}
+
+// Sets a file's length to `size`: content past `size` is cut off, and a file
+// shorter than `size` is extended with zero bytes up to it.
+message FsalTruncateRequest {
+  string execution_id = 1;
+  string volume_id = 2;
+  string path = 3;
+  FsalAccessPolicy policy = 4;
+  uint64 size = 5;
+  // Optional workflow execution ID for WorkflowExecution-owned volumes.
   string workflow_execution_id = 6;
 }
 
