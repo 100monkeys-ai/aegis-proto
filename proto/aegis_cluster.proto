@@ -1,7 +1,8 @@
 // AEGIS Cluster Service Protocol
 // gRPC service definition for inter-node communication in a distributed AEGIS cluster.
 // Handles node attestation (two-step handshake), registration, heartbeat, execution
-// routing/forwarding, config sync, and peer discovery.
+// routing/forwarding, config sync, peer discovery, and membership probes and
+// fences (ADR-152).
 //
 // Port: 50056
 // Auth: All RPCs except AttestNode and ChallengeNode require a SealNodeEnvelope
@@ -119,6 +120,22 @@ service NodeClusterService {
   // SealNodeEnvelope — the principal is a human/service-account, not a node.
   rpc IssueEnrollmentToken(IssueEnrollmentTokenRequest)
       returns (IssueEnrollmentTokenResponse);
+
+  // ── Membership (ADR-152 D1, D6) ────────────────────────────────────────────
+
+  // Peer → peer over vRack, every second: is this node alive, which process
+  // of it answers, and in what state. The lease in PostgreSQL decides
+  // ownership; this probe is the second signal that decides death, and only
+  // together with an expired lease (ADR-152 D1.4).
+  // payload: serialized ProbeInner.
+  rpc Probe(ProbeRequest) returns (ProbeResponse);
+
+  // Peer → a DB-partitioned peer whose grace has run out (ADR-152 D6): stop
+  // your work under the named incarnation and acknowledge, so that what you
+  // own can be adopted without running twice. A node that is not the named
+  // incarnation answers fenced = false and changes nothing.
+  // payload: serialized FenceInner.
+  rpc Fence(FenceRequest) returns (FenceResponse);
 }
 
 // =============================================================================
@@ -821,4 +838,69 @@ message IssueEnrollmentTokenResponse {
   string controller_endpoint = 3;
   string qr_payload = 4;
   string command_hint = 5;
+}
+
+// =============================================================================
+// Membership: Probe and Fence (ADR-152 D1, D6)
+// =============================================================================
+
+// A node's membership state, as the node itself reports it.
+enum MemberState {
+  MEMBER_STATE_UNSPECIFIED = 0;
+  // Renewing its lease and doing its work.
+  MEMBER_STATE_ACTIVE = 1;
+  // Finishing its work before it exits; takes no new work.
+  MEMBER_STATE_DRAINING = 2;
+  // Stopped by a Fence, or by its own lease being superseded; holds nothing.
+  MEMBER_STATE_FENCED = 3;
+}
+
+message ProbeRequest {
+  // payload must deserialise to ProbeInner after signature verification.
+  SealNodeEnvelope envelope = 1;
+}
+
+// Plaintext inner payload for Probe.
+message ProbeInner {
+  // The probing node and the incarnation of its process.
+  string node_id = 1;
+  int64 incarnation = 2;
+}
+
+message ProbeResponse {
+  // The answering node and the incarnation of its process (one more each
+  // time it starts).
+  string node_id = 1;
+  int64 incarnation = 2;
+  MemberState state = 3;
+
+  // When this node last renewed its lease, as it saw the database answer;
+  // absent before its first renewal. Peers never compare it with their own
+  // clock: a node that answers probes but has stopped renewing is
+  // DB-partitioned, not dead (ADR-152 D6).
+  google.protobuf.Timestamp last_renewed_at = 4;
+}
+
+message FenceRequest {
+  // payload must deserialise to FenceInner after signature verification.
+  SealNodeEnvelope envelope = 1;
+}
+
+// Plaintext inner payload for Fence.
+message FenceInner {
+  // The node being fenced, and the incarnation the sender judged
+  // DB-partitioned. A node running another incarnation is not fenced.
+  string target_node_id = 1;
+  int64 target_incarnation = 2;
+
+  // Free-text reason, e.g. "db_partition_grace_elapsed".
+  string reason = 3;
+}
+
+message FenceResponse {
+  // true when the named incarnation is now fenced (or already was).
+  bool fenced = 1;
+
+  // The incarnation that answered.
+  int64 incarnation = 2;
 }
