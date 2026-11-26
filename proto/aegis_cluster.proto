@@ -142,25 +142,47 @@ service NodeClusterService {
 // Security Envelope
 // =============================================================================
 
-// Outer security wrapper required on all authenticated RPCs (analogous to
-// SealEnvelope in the user-facing protocol, but scoped to node-to-node calls).
-// The controller verifies node_security_token (RS256 JWT issued by its own
-// OpenBao Transit key) and then verifies the Ed25519 signature over payload
-// using the node's registered public key before deserialising payload.
+// Outer security wrapper required on all authenticated node RPCs (analogous
+// to SealEnvelope in the user-facing protocol, but scoped to node-to-node
+// calls). The receiver accepts an envelope only when all of these hold:
+//
+//   1. node_security_token is an RS256 JWT whose signature verifies against
+//      the cluster's OpenBao Transit key, and it has not expired;
+//   2. signature is the Ed25519 signature, by the key the token's node
+//      registered, over the signed bytes below;
+//   3. issued_at_ms lies within the receiver's freshness window;
+//   4. the receiver has not already accepted this node's nonce.
+//
+// Only then is payload deserialised. The signed bytes are
+//
+//   "aegis-seal-node/v1" || issued_at_ms (8 bytes, big-endian, two's
+//   complement) || len(nonce) (4 bytes, big-endian) || nonce || payload
+//
+// so the timestamp and nonce cannot be altered without breaking the
+// signature.
 message SealNodeEnvelope {
-  // RS256 JWT issued by the controller's OpenBao Transit key during ChallengeNode.
+  // RS256 JWT issued with the cluster's OpenBao Transit key, by the
+  // controller during ChallengeNode or by a joined peer for itself. The
+  // header carries `kid`, the Transit key version that signed it.
   // Claims: node_id, role, capabilities_hash, iat, exp; for edge daemons
   // (ADR-117) additionally includes `tid` (persistent tenant binding) and
   // `cep` (controller endpoint advertised at enrollment time).
   string node_security_token = 1;
 
-  // Ed25519 signature over payload using the node's private key.
+  // Ed25519 signature over the signed bytes, using the node's private key.
   // Provides non-repudiation: nodes cannot deny issuing a request.
   bytes signature = 2;
 
   // Serialised inner request message (e.g., RegisterNodeInner, NodeHeartbeatInner).
-  // Must be deserialised only after signature verification succeeds.
+  // Must be deserialised only after verification succeeds.
   bytes payload = 3;
+
+  // When the sender sealed the envelope, in milliseconds since the Unix epoch.
+  int64 issued_at_ms = 4;
+
+  // At least 16 random bytes, never reused by the sender. The receiver
+  // refuses a nonce it has already accepted from the same node.
+  bytes nonce = 5;
 }
 
 // =============================================================================
