@@ -136,6 +136,13 @@ service NodeClusterService {
   // incarnation answers fenced = false and changes nothing.
   // payload: serialized FenceInner.
   rpc Fence(FenceRequest) returns (FenceResponse);
+
+  // A cancel for an execution another node owns (AEGIS ADR-152 D5.4): the
+  // node that received the cancel records it on the execution
+  // (cancel_requested_at) and forwards it to the owner, whose supervisor
+  // stops the run. An owner the forward does not reach still stops at its
+  // run's next iteration boundary, where it reads the recorded request.
+  rpc CancelExecution(CancelExecutionRequest) returns (CancelExecutionResponse);
 }
 
 // =============================================================================
@@ -925,4 +932,25 @@ message FenceResponse {
 
   // The incarnation that answered.
   int64 incarnation = 2;
+}
+
+// ADR-152 D5.4.
+message CancelExecutionRequest {
+  // payload must deserialise to CancelExecutionInner after signature
+  // verification.
+  SealNodeEnvelope envelope = 1;
+}
+
+// Plaintext inner payload for CancelExecution.
+message CancelExecutionInner {
+  string execution_id = 1;
+  // The tenant the cancel was authorised for, checked by the owner against
+  // the execution's own tenant.
+  string tenant_id = 2;
+}
+
+message CancelExecutionResponse {
+  // true when this node owns the execution and told its supervisor to stop
+  // (or it had already ended); false when this node does not own it.
+  bool accepted = 1;
 }
