@@ -162,6 +162,12 @@ service NodeClusterService {
   // and the caller fails fast (ADR-117).
   // payload: serialized InvokeEdgeToolInner.
   rpc InvokeEdgeTool(InvokeEdgeToolRequest) returns (InvokeEdgeToolResponse);
+
+  // A cancel of a fleet command another member runs (AEGIS ADR-152 D4.7):
+  // the member that received it forwards it to the fleet command's owner
+  // (fleet_command_owners), whose registry holds the command's tasks.
+  // payload: serialized CancelFleetCommandInner.
+  rpc CancelFleetCommand(CancelFleetCommandRequest) returns (CancelFleetCommandResponse);
 }
 
 // =============================================================================
@@ -1038,4 +1044,26 @@ message InvokeEdgeToolInner {
 
 message InvokeEdgeToolResponse {
   EdgeResult result = 1;
+}
+
+
+// ADR-152 D4.7.
+message CancelFleetCommandRequest {
+  // payload must deserialise to CancelFleetCommandInner after signature
+  // verification.
+  SealNodeEnvelope envelope = 1;
+}
+
+// Plaintext inner payload for CancelFleetCommand.
+message CancelFleetCommandInner {
+  string fleet_command_id = 1;
+  // The tenant the cancel was authorised for; empty when the caller is a
+  // writing operator, who may cancel any tenant's command.
+  string tenant_id = 2;
+}
+
+message CancelFleetCommandResponse {
+  // true when this member ran the command and signalled its cancel; false
+  // when it does not run it or the tenant does not own it.
+  bool accepted = 1;
 }
