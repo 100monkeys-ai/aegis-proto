@@ -143,6 +143,15 @@ service NodeClusterService {
   // stops the run. An owner the forward does not reach still stops at its
   // run's next iteration boundary, where it reads the recorded request.
   rpc CancelExecution(CancelExecutionRequest) returns (CancelExecutionResponse);
+
+  // Peer → peer, long-lived (AEGIS ADR-152 D3): the events of the relayed
+  // categories this node originates, as it publishes them, each in an
+  // envelope carrying its origin and a per-origin sequence. The subscriber
+  // republishes them on its local bus with the envelope intact. A full
+  // outbound queue closes the stream; the subscriber resynchronises from
+  // execution_events and opens it again.
+  // payload: serialized StreamClusterEventsInner.
+  rpc StreamClusterEvents(StreamClusterEventsRequest) returns (stream ClusterEventEnvelope);
 }
 
 // =============================================================================
@@ -953,4 +962,32 @@ message CancelExecutionResponse {
   // true when this node owns the execution and told its supervisor to stop
   // (or it had already ended); false when this node does not own it.
   bool accepted = 1;
+}
+
+// ADR-152 D3.
+message StreamClusterEventsRequest {
+  // payload must deserialise to StreamClusterEventsInner after signature
+  // verification.
+  SealNodeEnvelope envelope = 1;
+}
+
+// Plaintext inner payload for StreamClusterEvents.
+message StreamClusterEventsInner {
+  // The subscribing node and the incarnation of its process.
+  string node_id = 1;
+  int64 incarnation = 2;
+}
+
+// One event as its origin published it.
+message ClusterEventEnvelope {
+  // The node and process that published the event.
+  string origin_node_id = 1;
+  int64 origin_incarnation = 2;
+  // One more for every relayed event this process publishes, from 1. A hole
+  // tells the subscriber it missed events and must resynchronise.
+  uint64 origin_seq = 3;
+  // The event's category, e.g. "execution" or "workflow".
+  string category = 4;
+  // The event, as the orchestrator's DomainEvent serialises to JSON.
+  bytes event_json = 5;
 }
