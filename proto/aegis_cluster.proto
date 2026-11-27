@@ -152,6 +152,16 @@ service NodeClusterService {
   // execution_events and opens it again.
   // payload: serialized StreamClusterEventsInner.
   rpc StreamClusterEvents(StreamClusterEventsRequest) returns (stream ClusterEventEnvelope);
+
+  // A tool call for an edge daemon whose stream another process holds
+  // (AEGIS ADR-152 D8). A member's core sends it to the member whose Relay
+  // Coordinator holds the stream (edge_stream_owners), over the members'
+  // mutual TLS; that member's core sends it on to its own Relay Coordinator
+  // over the pod network, which runs it on the stream. A process that holds
+  // no stream for the edge answers FailedPrecondition ("edge unavailable"),
+  // and the caller fails fast (ADR-117).
+  // payload: serialized InvokeEdgeToolInner.
+  rpc InvokeEdgeTool(InvokeEdgeToolRequest) returns (InvokeEdgeToolResponse);
 }
 
 // =============================================================================
@@ -1004,4 +1014,28 @@ message ClusterEventEnvelope {
   string category = 4;
   // The event, as the orchestrator's DomainEvent serialises to JSON.
   bytes event_json = 5;
+}
+
+// ADR-152 D8.
+message InvokeEdgeToolRequest {
+  // payload must deserialise to InvokeEdgeToolInner after signature
+  // verification.
+  SealNodeEnvelope envelope = 1;
+}
+
+// Plaintext inner payload for InvokeEdgeTool: the dispatch as the
+// originating core built it, its tenant already checked against the edge.
+message InvokeEdgeToolInner {
+  string edge_node_id = 1;
+  string tenant_id = 2;
+  string tool_name = 3;
+  google.protobuf.Struct args = 4;
+  string security_context_name = 5;
+  // The user's SEAL envelope, which the edge daemon verifies itself.
+  SealEnvelope user_seal_envelope = 6;
+  google.protobuf.Duration deadline = 7;
+}
+
+message InvokeEdgeToolResponse {
+  EdgeResult result = 1;
 }
