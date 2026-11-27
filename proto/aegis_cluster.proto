@@ -19,7 +19,6 @@ option go_package = "github.com/100monkeys-ai/aegis-proto/gen/go/cluster/v1;clus
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/struct.proto";
-import "aegis_runtime.proto";
 
 // =============================================================================
 // NodeClusterService
@@ -67,12 +66,13 @@ service NodeClusterService {
   // payload: serialized RouteExecutionInner.
   rpc RouteExecution(RouteExecutionRequest) returns (RouteExecutionResponse);
 
-  // Controller → Worker: delegate an execution to this worker and stream
-  // aegis.runtime.v1.ExecutionEvents back to the caller in real time.
-  // The stream closes when the execution reaches a terminal state
-  // (ExecutionCompleted or ExecutionFailed).
+  // Peer → peer (ADR-152 D5.3, D5.5): start an execution here because the
+  // forwarding node is at capacity or draining. Answers once this node has
+  // claimed it; its events reach the caller's node through the cluster event
+  // relay. The caller is the forwarding node's signed assertion, never a
+  // forwarded bearer token.
   // payload: serialized ForwardExecutionInner.
-  rpc ForwardExecution(ForwardExecutionRequest) returns (stream aegis.runtime.v1.ExecutionEvent);
+  rpc ForwardExecution(ForwardExecutionRequest) returns (ForwardExecutionResponse);
 
   // ── Config Sync (authenticated) ────────────────────────────────────────────
 
@@ -512,19 +512,33 @@ message ForwardExecutionInner {
   // ID of the node that originated (routed) this execution; used for audit trails.
   string originating_node_id = 5;
 
-  // Original user's SEAL SecurityToken threaded through from the client boundary.
-  // The worker uses this when forwarding tool calls back through the orchestrator
-  // proxy to maintain end-to-end user-principal attribution.
-  string user_security_token = 6;
+  // The caller's raw token is never forwarded (ADR-152 D5.5).
+  reserved 6;
+  reserved "user_security_token";
 
   // ADR-083: Security context name propagated from the originating node so the
   // worker applies the correct security policy without hardcoding a default.
   string security_context_name = 7;
+
+  // ADR-152 D5.5: the caller as the forwarding node authenticated it at its
+  // own entry point, the orchestrator's UserIdentity as JSON; empty for a
+  // start no user made (a system context). The forwarding node vouches for
+  // it: the envelope's signature covers it, and the receiver accepts it
+  // only from an active member under a live lease, for this execution_id.
+  string caller_identity_json = 8;
+
+  // When the forwarding node issued this forward, in Unix seconds. The
+  // receiver refuses a forward issued more than 60 s from its own clock.
+  int64 vouched_at_unix = 9;
 }
 
-// NOTE: The response is a server-streaming sequence of aegis.runtime.v1.ExecutionEvent
-//       messages (imported from aegis_runtime.proto). The stream closes when the
-//       execution reaches ExecutionCompleted or ExecutionFailed.
+// ADR-152 D5.5: answered once the receiving node has claimed the execution.
+// Its events reach every node through the cluster event relay (D3), not
+// through this call. A repeat of a forward already claimed answers the same.
+message ForwardExecutionResponse {
+  // The node that owns the execution.
+  string owner_node_id = 1;
+}
 
 // =============================================================================
 // SyncConfig RPC
