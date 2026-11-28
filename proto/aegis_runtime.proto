@@ -70,6 +70,12 @@ service AegisRuntime {
   // The worker calls it for an Action state whose action is
   // `image_generate`, never ExecuteSystemCommand or InvokeTool.
   rpc RunImageGenerate(RunImageGenerateRequest) returns (RunImageGenerateResponse);
+
+  // A workflow's host and fleet actions (AEGIS ADR-157 D4): an `Action`
+  // state's host_state_plan, host_state_apply, edge_fleet_invoke or
+  // http_check, run by the orchestrator under the run's own authority with
+  // no model in the loop.
+  rpc RunHostAction(RunHostActionRequest) returns (RunHostActionResponse);
 }
 
 // =============================================================================
@@ -870,3 +876,32 @@ message FuseUnmountRequest {
 message FuseUnmountResponse {
   bool unmounted = 1;
 }
+
+// AEGIS ADR-157 D4.
+message RunHostActionRequest {
+  // The workflow execution the step belongs to; the action runs in its
+  // tenant and is attested as its run.
+  string workflow_execution_id = 1;
+  // One of `host_state_plan`, `host_state_apply`, `edge_fleet_invoke`,
+  // `http_check`. Any other value is refused.
+  string action = 2;
+  // The state's rendered arguments, a JSON object:
+  //   host_state_plan, host_state_apply: { "name": "<HostState>" }
+  //   edge_fleet_invoke: { "target": <EdgeTarget>, "tool": "<name>",
+  //     "args": {...}, "security_context": "<name>", "mode": "sequential"|"parallel" }
+  //   http_check: { "url": "<https url>", "expect_status": 200,
+  //     "attempts": 10, "interval_secs": 6 }
+  string args_json = 3;
+}
+
+message RunHostActionResponse {
+  // The action's result as JSON: a host state run's per-host reports, a
+  // fleet run's per-node outcomes, an HTTP check's final status.
+  string result_json = 1;
+  // True when the action did what it was asked: every host applied with no
+  // failure, every node succeeded, the check saw its status.
+  bool ok = 2;
+  // The refusal, in the orchestrator's words, when the step did not act.
+  optional string sentence = 3;
+}
+
